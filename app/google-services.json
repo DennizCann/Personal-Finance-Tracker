@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1053839715512",
+    "project_id": "personal-finance-tracker-20c11",
+    "storage_bucket": "personal-finance-tracker-20c11.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1053839715512:android:13f31dd9dcbdaecdb7584d",
+        "android_client_info": {
+          "package_name": "com.denizcan.personalfinancetracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtIKrju4y_NeFH4y238zY2cKgiEx3-zH0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
