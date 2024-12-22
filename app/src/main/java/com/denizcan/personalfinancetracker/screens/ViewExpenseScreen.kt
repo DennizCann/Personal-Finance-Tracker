@@ -1,5 +1,6 @@
 package com.denizcan.personalfinancetracker.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,7 +15,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 fun ViewExpenseScreen(navController: NavController) {
     val db = FirebaseFirestore.getInstance()
     val currentUser = FirebaseAuth.getInstance().currentUser
-    var expenses by remember { mutableStateOf(listOf<Pair<String, Double>>()) }
+    var expenses by remember { mutableStateOf(listOf<Triple<String, String, Double>>()) }
 
     // Firestore'dan giderleri çek
     LaunchedEffect(currentUser) {
@@ -24,9 +25,10 @@ fun ViewExpenseScreen(navController: NavController) {
                 .get()
                 .addOnSuccessListener { result ->
                     expenses = result.documents.map { doc ->
-                        Pair(
-                            doc.getString("name") ?: "Unknown Expense",
-                            doc.getDouble("amount") ?: 0.0
+                        Triple(
+                            doc.id, // Belge ID'si
+                            doc.getString("name") ?: "Unknown Expense", // İsim
+                            doc.getDouble("amount") ?: 0.0 // Miktar
                         )
                     }
                 }
@@ -35,10 +37,10 @@ fun ViewExpenseScreen(navController: NavController) {
 
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.TopStart // Üstte ve sola hizala
+        contentAlignment = Alignment.TopStart
     ) {
         Column(
-            horizontalAlignment = Alignment.Start, // Tüm metinleri sola hizala
+            horizontalAlignment = Alignment.Start,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
@@ -51,12 +53,25 @@ fun ViewExpenseScreen(navController: NavController) {
             Spacer(modifier = Modifier.height(16.dp))
 
             // Listeyi göster
-            expenses.forEach { (name, amount) ->
-                Text(
-                    text = "$name: $${amount}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.fillMaxWidth() // Tüm genişliği doldur
-                )
+            expenses.forEach { (id, name, amount) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            navController.navigate("editExpense/$id") // Düzenleme ekranına yönlendirme
+                        }
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "$${amount}",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }

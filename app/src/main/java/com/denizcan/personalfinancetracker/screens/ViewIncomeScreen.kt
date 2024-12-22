@@ -1,5 +1,6 @@
 package com.denizcan.personalfinancetracker.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,9 +15,8 @@ import com.google.firebase.firestore.FirebaseFirestore
 fun ViewIncomeScreen(navController: NavController) {
     val db = FirebaseFirestore.getInstance()
     val currentUser = FirebaseAuth.getInstance().currentUser
-    var incomes by remember { mutableStateOf(listOf<Pair<String, Double>>()) }
+    var incomes by remember { mutableStateOf(listOf<Triple<String, String, Double>>()) }
 
-    // Firestore'dan gelirleri çek
     LaunchedEffect(currentUser) {
         currentUser?.let { user ->
             db.collection("incomes")
@@ -24,9 +24,10 @@ fun ViewIncomeScreen(navController: NavController) {
                 .get()
                 .addOnSuccessListener { result ->
                     incomes = result.documents.map { doc ->
-                        Pair(
-                            doc.getString("name") ?: "Unknown Income",
-                            doc.getDouble("amount") ?: 0.0
+                        Triple(
+                            doc.id, // Firestore belge ID'si
+                            doc.getString("name") ?: "Unknown Income", // İsim
+                            doc.getDouble("amount") ?: 0.0 // Miktar
                         )
                     }
                 }
@@ -35,28 +36,38 @@ fun ViewIncomeScreen(navController: NavController) {
 
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.TopStart // Üstte ve sola hizala
+        contentAlignment = Alignment.TopStart
     ) {
         Column(
-            horizontalAlignment = Alignment.Start, // Tüm metinleri sola hizala
+            horizontalAlignment = Alignment.Start,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Text(
-                text = "Your Incomes",
-                style = MaterialTheme.typography.headlineMedium
-            )
+            Text(text = "Your Incomes", style = MaterialTheme.typography.headlineMedium)
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Listeyi göster
-            incomes.forEach { (name, amount) ->
-                Text(
-                    text = "$name: $${amount}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.fillMaxWidth() // Tüm genişliği doldur
-                )
+            incomes.forEach { (id, name, amount) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            navController.navigate("editIncome/$id") // Düzenleme ekranına yönlendirme
+                        }
+                        .padding(8.dp)
+                ) {
+                    Text(
+                        text = "$name",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "$${amount}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }

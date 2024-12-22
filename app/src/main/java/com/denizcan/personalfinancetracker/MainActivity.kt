@@ -13,6 +13,8 @@ import com.denizcan.personalfinancetracker.screens.AddExpenseScreen
 import com.denizcan.personalfinancetracker.screens.AddIncomeScreen
 import com.denizcan.personalfinancetracker.screens.AddScreen
 import com.denizcan.personalfinancetracker.screens.DashboardScreen
+import com.denizcan.personalfinancetracker.screens.EditExpenseScreen // EditExpenseScreen import edildi
+import com.denizcan.personalfinancetracker.screens.EditIncomeScreen
 import com.denizcan.personalfinancetracker.screens.EditProfileScreen
 import com.denizcan.personalfinancetracker.screens.LoginScreen
 import com.denizcan.personalfinancetracker.screens.RegisterScreen
@@ -20,7 +22,6 @@ import com.denizcan.personalfinancetracker.screens.ViewExpenseScreen
 import com.denizcan.personalfinancetracker.screens.ViewIncomeScreen
 import com.denizcan.personalfinancetracker.screens.ViewScreen
 import com.google.firebase.FirebaseApp
-
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,6 +61,16 @@ class MainActivity : ComponentActivity() {
                         }
                         composable("viewExpense") {
                             ViewExpenseScreen(navController)
+                        }
+                        // Edit Income Screen için rota
+                        composable("editIncome/{incomeId}") { backStackEntry ->
+                            val incomeId = backStackEntry.arguments?.getString("incomeId") ?: ""
+                            EditIncomeScreen(navController, incomeId)
+                        }
+                        // Edit Expense Screen için rota
+                        composable("editExpense/{expenseId}") { backStackEntry ->
+                            val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
+                            EditExpenseScreen(navController, expenseId)
                         }
                     }
                 }
