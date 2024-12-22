@@ -35,10 +35,10 @@ fun ViewExpenseScreen(navController: NavController) {
 
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.TopCenter
+        contentAlignment = Alignment.TopStart // Üstte ve sola hizala
     ) {
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
+            horizontalAlignment = Alignment.Start, // Tüm metinleri sola hizala
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
@@ -54,7 +54,8 @@ fun ViewExpenseScreen(navController: NavController) {
             expenses.forEach { (name, amount) ->
                 Text(
                     text = "$name: $${amount}",
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.fillMaxWidth() // Tüm genişliği doldur
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }

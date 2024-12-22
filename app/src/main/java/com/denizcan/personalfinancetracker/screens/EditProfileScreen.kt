@@ -9,29 +9,32 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 
 @Composable
 fun EditProfileScreen(navController: NavController) {
-    var name by remember { mutableStateOf("") }
-    var dateOfBirth by remember { mutableStateOf("") }
-    var isDateValid by remember { mutableStateOf(true) }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") }
-
     val db = FirebaseFirestore.getInstance()
     val currentUser = FirebaseAuth.getInstance().currentUser
 
-    // Tarih doğrulama fonksiyonu
-    fun validateDate(date: String): Boolean {
-        return try {
-            val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-            LocalDate.parse(date, formatter)
-            true
-        } catch (e: DateTimeParseException) {
-            false
+    // Kullanıcı bilgileri için state'ler
+    var name by remember { mutableStateOf("") }
+    var dateOfBirth by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf("") }
+
+    // Firestore'dan kullanıcı bilgilerini çek
+    LaunchedEffect(currentUser) {
+        currentUser?.let { user ->
+            db.collection("profiles").document(user.uid)
+                .get()
+                .addOnSuccessListener { document ->
+                    if (document != null && document.exists()) {
+                        name = document.getString("name") ?: ""
+                        dateOfBirth = document.getString("dateOfBirth") ?: ""
+                    }
+                }
+                .addOnFailureListener { e ->
+                    errorMessage = e.localizedMessage ?: "An error occurred"
+                }
         }
     }
 
@@ -49,7 +52,7 @@ fun EditProfileScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Name Input
+            // Name TextField
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
@@ -59,25 +62,13 @@ fun EditProfileScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Date of Birth Input
+            // Date of Birth TextField
             OutlinedTextField(
                 value = dateOfBirth,
-                onValueChange = {
-                    dateOfBirth = it
-                    isDateValid = validateDate(it)
-                },
+                onValueChange = { dateOfBirth = it },
                 label = { Text("Date of Birth (yyyy-MM-dd)") },
-                isError = !isDateValid,
                 modifier = Modifier.fillMaxWidth()
             )
-
-            if (!isDateValid) {
-                Text(
-                    text = "Invalid date format. Use yyyy-MM-dd.",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -87,7 +78,7 @@ fun EditProfileScreen(navController: NavController) {
             } else {
                 Button(
                     onClick = {
-                        if (name.isNotEmpty() && isDateValid && dateOfBirth.isNotEmpty() && currentUser != null) {
+                        if (name.isNotEmpty() && dateOfBirth.isNotEmpty() && currentUser != null) {
                             isLoading = true
                             val userProfile = mapOf(
                                 "name" to name,
@@ -104,7 +95,7 @@ fun EditProfileScreen(navController: NavController) {
                                 }
                                 .addOnFailureListener { e ->
                                     isLoading = false
-                                    errorMessage = e.localizedMessage ?: "Error occurred"
+                                    errorMessage = e.localizedMessage ?: "An error occurred"
                                 }
                         } else {
                             errorMessage = "Please fill in all fields"

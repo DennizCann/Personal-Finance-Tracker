@@ -103,17 +103,22 @@ fun DashboardScreen(navController: NavController) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .fillMaxWidth(), // Tüm genişliği doldur
+                    horizontalAlignment = Alignment.Start // Sola hizala
                 ) {
                     Text("Income: $${income}", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp)) // Elemanlar arası boşluk
                     Text("Expenses: $${expenses}", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         "Remaining Balance: $${remainingBalance}",
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
             }
+
 
             Spacer(modifier = Modifier.height(16.dp))
 
