@@ -18,8 +18,11 @@ fun EditProfileScreen(navController: NavController) {
     // Kullanıcı bilgileri için state'ler
     var name by remember { mutableStateOf("") }
     var dateOfBirth by remember { mutableStateOf("") }
+    var currency by remember { mutableStateOf("TRY") } // Varsayılan para birimi
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
+
+    val currencyOptions = listOf("TRY", "USD", "EUR", "GBP") // Para birimi seçenekleri
 
     // Firestore'dan kullanıcı bilgilerini çek
     LaunchedEffect(currentUser) {
@@ -30,6 +33,7 @@ fun EditProfileScreen(navController: NavController) {
                     if (document != null && document.exists()) {
                         name = document.getString("name") ?: ""
                         dateOfBirth = document.getString("dateOfBirth") ?: ""
+                        currency = document.getString("currency") ?: "TRY"
                     }
                 }
                 .addOnFailureListener { e ->
@@ -70,6 +74,38 @@ fun EditProfileScreen(navController: NavController) {
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Currency Dropdown
+            Text("Select Currency", style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            var expanded by remember { mutableStateOf(false) }
+
+            Box {
+                OutlinedButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(text = currency)
+                }
+
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    currencyOptions.forEach { option ->
+                        DropdownMenuItem(
+                            onClick = {
+                                currency = option
+                                expanded = false
+                            },
+                            text = { Text(option) }
+                        )
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Save Button
@@ -83,6 +119,7 @@ fun EditProfileScreen(navController: NavController) {
                             val userProfile = mapOf(
                                 "name" to name,
                                 "dateOfBirth" to dateOfBirth,
+                                "currency" to currency,
                                 "userId" to currentUser.uid
                             )
 

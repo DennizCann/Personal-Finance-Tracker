@@ -22,6 +22,7 @@ fun DashboardScreen(navController: NavController) {
     var income by remember { mutableStateOf(0.0) }
     var expenses by remember { mutableStateOf(0.0) }
     var remainingBalance by remember { mutableStateOf(0.0) }
+    var currency by remember { mutableStateOf("TRY") } // Varsayılan para birimi
 
     val db = FirebaseFirestore.getInstance()
     val currentUser = FirebaseAuth.getInstance().currentUser
@@ -35,6 +36,7 @@ fun DashboardScreen(navController: NavController) {
                 .addOnSuccessListener { document ->
                     if (document != null && document.exists()) {
                         name = document.getString("name") ?: "User"
+                        currency = document.getString("currency") ?: "TRY"
                         val dateOfBirth = document.getString("dateOfBirth")
                         if (!dateOfBirth.isNullOrEmpty()) {
                             try {
@@ -106,19 +108,18 @@ fun DashboardScreen(navController: NavController) {
                     modifier = Modifier
                         .padding(16.dp)
                         .fillMaxWidth(), // Tüm genişliği doldur
-                    horizontalAlignment = Alignment.Start // Sola hizala
+                    horizontalAlignment = Alignment.Start // Sola hizalı yapıldı
                 ) {
-                    Text("Income: $${income}", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp)) // Elemanlar arası boşluk
-                    Text("Expenses: $${expenses}", style = MaterialTheme.typography.titleMedium)
+                    Text("Income: ${income} $currency", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Expenses: ${expenses} $currency", style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Remaining Balance: $${remainingBalance}",
+                        "Remaining Balance: ${remainingBalance} $currency",
                         style = MaterialTheme.typography.titleMedium
                     )
                 }
             }
-
 
             Spacer(modifier = Modifier.height(16.dp))
 
