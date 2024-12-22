@@ -1,5 +1,3 @@
-// ViewScreen.kt
-
 package com.denizcan.personalfinancetracker.screens
 
 import androidx.compose.foundation.layout.*
