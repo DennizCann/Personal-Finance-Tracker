@@ -5,13 +5,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun RegisterScreen(navController: NavController) {
+    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -60,16 +63,18 @@ fun RegisterScreen(navController: NavController) {
 
             Button(
                 onClick = {
-                    if (password == confirmPassword) {
-                        registerWithEmailAndPassword(email, password) { success, error ->
-                            if (success) {
-                                navController.navigate("login") // Kayıt sonrası giriş ekranına dön
-                            } else {
-                                errorMessage = error ?: "Unknown error"
+                    if (!isPreview) {
+                        if (password == confirmPassword) {
+                            registerWithEmailAndPassword(email, password) { success, error ->
+                                if (success) {
+                                    navController.navigate("login")
+                                } else {
+                                    errorMessage = error ?: "Unknown error"
+                                }
                             }
+                        } else {
+                            errorMessage = "Passwords do not match"
                         }
-                    } else {
-                        errorMessage = "Passwords do not match"
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -86,8 +91,10 @@ fun RegisterScreen(navController: NavController) {
 
             TextButton(
                 onClick = {
-                    navController.navigate("login") {
-                        popUpTo("login") { inclusive = true }
+                    if (!isPreview) {
+                        navController.navigate("login") {
+                            popUpTo("login") { inclusive = true }
+                        }
                     }
                 }
             ) {
@@ -111,4 +118,13 @@ fun registerWithEmailAndPassword(
                 callback(false, task.exception?.localizedMessage)
             }
         }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun RegisterScreenPreview() {
+    MaterialTheme {
+        val mockNavController = androidx.navigation.compose.rememberNavController()
+        RegisterScreen(navController = mockNavController)
+    }
 }

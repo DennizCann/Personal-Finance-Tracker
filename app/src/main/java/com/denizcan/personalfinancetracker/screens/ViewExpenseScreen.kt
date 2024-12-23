@@ -7,7 +7,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -16,36 +18,37 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun ViewExpenseScreen(navController: NavController) {
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
     var expenses by remember { mutableStateOf(listOf<Triple<String, String, Double>>()) }
-    var currency by remember { mutableStateOf("") }
+    var currency by remember { mutableStateOf("USD") } // Varsayılan para birimi USD
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    // Firestore'dan giderleri ve para birimini çek
-    LaunchedEffect(currentUser) {
-        currentUser?.let { user ->
-            // Kullanıcının seçtiği para birimini al
-            db.collection("profiles").document(user.uid)
-                .get()
-                .addOnSuccessListener { document ->
-                    currency = document.getString("currency") ?: "USD" // Varsayılan USD
-                }
-
-            // Giderleri al
-            db.collection("expenses")
-                .whereEqualTo("userId", user.uid)
-                .get()
-                .addOnSuccessListener { result ->
-                    expenses = result.documents.map { doc ->
-                        Triple(
-                            doc.id, // Belge ID'si
-                            doc.getString("name") ?: "Unknown Expense", // İsim
-                            doc.getDouble("amount") ?: 0.0 // Miktar
-                        )
+    if (!isPreview) {
+        // Firestore'dan giderleri ve para birimini çek
+        LaunchedEffect(currentUser) {
+            currentUser?.let { user ->
+                db?.collection("profiles")?.document(user.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { document ->
+                        currency = document.getString("currency") ?: "USD" // Varsayılan USD
                     }
-                }
+
+                db?.collection("expenses")
+                    ?.whereEqualTo("userId", user.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { result ->
+                        expenses = result.documents.map { doc ->
+                            Triple(
+                                doc.id, // Belge ID'si
+                                doc.getString("name") ?: "Unknown Expense", // İsim
+                                doc.getDouble("amount") ?: 0.0 // Miktar
+                            )
+                        }
+                    }
+            }
         }
     }
 
@@ -96,7 +99,7 @@ fun ViewExpenseScreen(navController: NavController) {
                         .fillMaxWidth()
                         .padding(4.dp)
                         .clickable { // Tıklanabilirlik ekleniyor
-                            navController.navigate("editExpense/$id") // EditExpenseScreen'e yönlendirme
+                            if (!isPreview) navController.navigate("editExpense/$id") // EditExpenseScreen'e yönlendirme
                         },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -117,17 +120,20 @@ fun ViewExpenseScreen(navController: NavController) {
                     )
                     IconButton(
                         onClick = {
-                            isLoading = true
-                            db.collection("expenses").document(id)
-                                .delete()
-                                .addOnSuccessListener {
-                                    expenses = expenses.filterNot { it.first == id } // Silinen öğeyi listeden kaldır
-                                    isLoading = false
-                                }
-                                .addOnFailureListener { error ->
-                                    errorMessage = error.localizedMessage ?: "Failed to delete expense"
-                                    isLoading = false
-                                }
+                            if (!isPreview) {
+                                isLoading = true
+                                db?.collection("expenses")?.document(id)
+                                    ?.delete()
+                                    ?.addOnSuccessListener {
+                                        expenses = expenses.filterNot { it.first == id } // Silinen öğeyi listeden kaldır
+                                        isLoading = false
+                                    }
+                                    ?.addOnFailureListener { error ->
+                                        errorMessage =
+                                            error.localizedMessage ?: "Failed to delete expense"
+                                        isLoading = false
+                                    }
+                            }
                         },
                         modifier = Modifier.size(24.dp) // İkon buton boyutu küçültüldü
                     ) {
@@ -156,5 +162,14 @@ fun ViewExpenseScreen(navController: NavController) {
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ViewExpenseScreenPreview() {
+    MaterialTheme {
+        val mockNavController = androidx.navigation.compose.rememberNavController()
+        ViewExpenseScreen(navController = mockNavController)
     }
 }

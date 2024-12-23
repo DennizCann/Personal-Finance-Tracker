@@ -5,6 +5,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
@@ -12,8 +14,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun EditProfileScreen(navController: NavController) {
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
     // Kullanıcı bilgileri için state'ler
     var name by remember { mutableStateOf("") }
@@ -24,21 +27,23 @@ fun EditProfileScreen(navController: NavController) {
 
     val currencyOptions = listOf("TRY", "USD", "EUR", "GBP") // Para birimi seçenekleri
 
-    // Firestore'dan kullanıcı bilgilerini çek
-    LaunchedEffect(currentUser) {
-        currentUser?.let { user ->
-            db.collection("profiles").document(user.uid)
-                .get()
-                .addOnSuccessListener { document ->
-                    if (document != null && document.exists()) {
-                        name = document.getString("name") ?: ""
-                        dateOfBirth = document.getString("dateOfBirth") ?: ""
-                        currency = document.getString("currency") ?: "TRY"
+    if (!isPreview) {
+        // Firestore'dan kullanıcı bilgilerini çek
+        LaunchedEffect(currentUser) {
+            currentUser?.let { user ->
+                db?.collection("profiles")?.document(user.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { document ->
+                        if (document != null && document.exists()) {
+                            name = document.getString("name") ?: ""
+                            dateOfBirth = document.getString("dateOfBirth") ?: ""
+                            currency = document.getString("currency") ?: "TRY"
+                        }
                     }
-                }
-                .addOnFailureListener { e ->
-                    errorMessage = e.localizedMessage ?: "An error occurred"
-                }
+                    ?.addOnFailureListener { e ->
+                        errorMessage = e.localizedMessage ?: "An error occurred"
+                    }
+            }
         }
     }
 
@@ -123,14 +128,14 @@ fun EditProfileScreen(navController: NavController) {
                                 "userId" to currentUser.uid
                             )
 
-                            db.collection("profiles")
-                                .document(currentUser.uid)
-                                .set(userProfile)
-                                .addOnSuccessListener {
+                            db?.collection("profiles")
+                                ?.document(currentUser.uid)
+                                ?.set(userProfile)
+                                ?.addOnSuccessListener {
                                     isLoading = false
                                     navController.navigate("dashboard")
                                 }
-                                .addOnFailureListener { e ->
+                                ?.addOnFailureListener { e ->
                                     isLoading = false
                                     errorMessage = e.localizedMessage ?: "An error occurred"
                                 }
@@ -149,5 +154,14 @@ fun EditProfileScreen(navController: NavController) {
                 Text(errorMessage, color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun EditProfileScreenPreview() {
+    MaterialTheme {
+        val mockNavController = androidx.navigation.compose.rememberNavController()
+        EditProfileScreen(navController = mockNavController)
     }
 }

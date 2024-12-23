@@ -7,7 +7,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -16,36 +18,37 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun ViewIncomeScreen(navController: NavController) {
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
     var incomes by remember { mutableStateOf(listOf<Triple<String, String, Double>>()) }
-    var currency by remember { mutableStateOf("") }
+    var currency by remember { mutableStateOf("USD") } // Varsayılan para birimi
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    // Firestore'dan gelir ve para birimini çek
-    LaunchedEffect(currentUser) {
-        currentUser?.let { user ->
-            // Kullanıcının seçtiği para birimini al
-            db.collection("profiles").document(user.uid)
-                .get()
-                .addOnSuccessListener { document ->
-                    currency = document.getString("currency") ?: "USD" // Varsayılan USD
-                }
-
-            // Gelirleri al
-            db.collection("incomes")
-                .whereEqualTo("userId", user.uid)
-                .get()
-                .addOnSuccessListener { result ->
-                    incomes = result.documents.map { doc ->
-                        Triple(
-                            doc.id, // Belge ID'si
-                            doc.getString("name") ?: "Unknown Income", // İsim
-                            doc.getDouble("amount") ?: 0.0 // Miktar
-                        )
+    if (!isPreview) {
+        // Firestore'dan gelir ve para birimini çek
+        LaunchedEffect(currentUser) {
+            currentUser?.let { user ->
+                db?.collection("profiles")?.document(user.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { document ->
+                        currency = document.getString("currency") ?: "USD"
                     }
-                }
+
+                db?.collection("incomes")
+                    ?.whereEqualTo("userId", user.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { result ->
+                        incomes = result.documents.map { doc ->
+                            Triple(
+                                doc.id, // Belge ID'si
+                                doc.getString("name") ?: "Unknown Income", // İsim
+                                doc.getDouble("amount") ?: 0.0 // Miktar
+                            )
+                        }
+                    }
+            }
         }
     }
 
@@ -74,18 +77,18 @@ fun ViewIncomeScreen(navController: NavController) {
                 Text(
                     text = "Name",
                     style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 14.sp, // Başlık yazı boyutu küçültüldü
+                    fontSize = 14.sp,
                     modifier = Modifier.weight(2f),
                     textAlign = TextAlign.Start
                 )
                 Text(
                     text = "Amount",
                     style = MaterialTheme.typography.bodyMedium,
-                    fontSize = 14.sp, // Başlık yazı boyutu küçültüldü
+                    fontSize = 14.sp,
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.End
                 )
-                Spacer(modifier = Modifier.width(32.dp)) // İkon için boşluk
+                Spacer(modifier = Modifier.width(32.dp))
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -95,47 +98,50 @@ fun ViewIncomeScreen(navController: NavController) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(4.dp)
-                        .clickable { // Gelir tıklanabilir hale getirildi
-                            navController.navigate("editIncome/$id") // EditIncomeScreen'e yönlendirme
+                        .clickable {
+                            if (!isPreview) navController.navigate("editIncome/$id")
                         },
-                    verticalAlignment = Alignment.CenterVertically, // Satır hizalama
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = name,
                         style = MaterialTheme.typography.bodyMedium,
-                        fontSize = 14.sp, // Yazı boyutu küçültüldü
+                        fontSize = 14.sp,
                         modifier = Modifier.weight(2f),
                         textAlign = TextAlign.Start
                     )
                     Text(
                         text = "$amount $currency",
                         style = MaterialTheme.typography.bodyMedium,
-                        fontSize = 14.sp, // Yazı boyutu küçültüldü
+                        fontSize = 14.sp,
                         modifier = Modifier.weight(1f),
                         textAlign = TextAlign.End
                     )
                     IconButton(
                         onClick = {
-                            isLoading = true
-                            db.collection("incomes").document(id)
-                                .delete()
-                                .addOnSuccessListener {
-                                    incomes = incomes.filterNot { it.first == id } // Silinen öğeyi listeden kaldır
-                                    isLoading = false
-                                }
-                                .addOnFailureListener { error ->
-                                    errorMessage = error.localizedMessage ?: "Failed to delete income"
-                                    isLoading = false
-                                }
+                            if (!isPreview) {
+                                isLoading = true
+                                db?.collection("incomes")?.document(id)
+                                    ?.delete()
+                                    ?.addOnSuccessListener {
+                                        incomes = incomes.filterNot { it.first == id }
+                                        isLoading = false
+                                    }
+                                    ?.addOnFailureListener { error ->
+                                        errorMessage =
+                                            error.localizedMessage ?: "Failed to delete income"
+                                        isLoading = false
+                                    }
+                            }
                         },
-                        modifier = Modifier.size(24.dp) // İkon boyutu küçültüldü
+                        modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = androidx.compose.material.icons.Icons.Default.Delete,
                             contentDescription = "Delete Income",
                             tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(16.dp) // İkon resmi küçültüldü
+                            modifier = Modifier.size(16.dp)
                         )
                     }
                 }
@@ -156,5 +162,14 @@ fun ViewIncomeScreen(navController: NavController) {
                 )
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun ViewIncomeScreenPreview() {
+    MaterialTheme {
+        val mockNavController = androidx.navigation.compose.rememberNavController()
+        ViewIncomeScreen(navController = mockNavController)
     }
 }

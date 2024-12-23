@@ -13,11 +13,14 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.tooling.preview.Preview
 
 @Composable
 fun EditExpenseScreen(navController: NavController, expenseId: String) {
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
@@ -28,19 +31,21 @@ fun EditExpenseScreen(navController: NavController, expenseId: String) {
 
     val categories = listOf("Education", "Food", "Transportation", "Health", "Entertainment", "Other")
 
-    // Firestore'dan gider bilgilerini çek
-    LaunchedEffect(currentUser, expenseId) {
-        currentUser?.let {
-            db.collection("expenses").document(expenseId)
-                .get()
-                .addOnSuccessListener { document ->
-                    name = document.getString("name") ?: ""
-                    amount = document.getDouble("amount")?.toString() ?: ""
-                    selectedCategory = document.getString("category") ?: ""
-                }
-                .addOnFailureListener {
-                    errorMessage = it.localizedMessage ?: "An error occurred"
-                }
+    if (!isPreview) {
+        // Firestore'dan gider bilgilerini çek
+        LaunchedEffect(currentUser, expenseId) {
+            currentUser?.let {
+                db?.collection("expenses")?.document(expenseId)
+                    ?.get()
+                    ?.addOnSuccessListener { document ->
+                        name = document.getString("name") ?: ""
+                        amount = document.getDouble("amount")?.toString() ?: ""
+                        selectedCategory = document.getString("category") ?: ""
+                    }
+                    ?.addOnFailureListener {
+                        errorMessage = it.localizedMessage ?: "An error occurred"
+                    }
+            }
         }
     }
 
@@ -127,13 +132,13 @@ fun EditExpenseScreen(navController: NavController, expenseId: String) {
                     onClick = {
                         if (name.isNotEmpty() && amount.isNotEmpty() && selectedCategory.isNotEmpty()) {
                             isLoading = true
-                            db.collection("expenses").document(expenseId)
-                                .update("name", name, "amount", amount.toDouble(), "category", selectedCategory)
-                                .addOnSuccessListener {
+                            db?.collection("expenses")?.document(expenseId)
+                                ?.update("name", name, "amount", amount.toDouble(), "category", selectedCategory)
+                                ?.addOnSuccessListener {
                                     isLoading = false
                                     navController.popBackStack() // Geri dön
                                 }
-                                .addOnFailureListener {
+                                ?.addOnFailureListener {
                                     isLoading = false
                                     errorMessage = it.localizedMessage ?: "An error occurred"
                                 }
@@ -152,5 +157,14 @@ fun EditExpenseScreen(navController: NavController, expenseId: String) {
                 Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun EditExpenseScreenPreview() {
+    MaterialTheme {
+        val mockNavController = androidx.navigation.compose.rememberNavController()
+        EditExpenseScreen(navController = mockNavController, expenseId = "mockExpenseId")
     }
 }

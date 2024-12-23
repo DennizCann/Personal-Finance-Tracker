@@ -8,10 +8,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+
 
 @Composable
 fun AddExpenseScreen(navController: NavController) {
@@ -22,8 +26,9 @@ fun AddExpenseScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    val isPreview = LocalInspectionMode.current // Preview'da çalışıp çalışmadığını kontrol eder
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
     val categories = listOf("Education", "Food", "Transportation", "Health", "Entertainment", "Other")
 
@@ -105,7 +110,7 @@ fun AddExpenseScreen(navController: NavController) {
             } else {
                 Button(
                     onClick = {
-                        if (expenseName.isNotEmpty() && expenseAmount.isNotEmpty() &&
+                        if (!isPreview && expenseName.isNotEmpty() && expenseAmount.isNotEmpty() &&
                             selectedCategory.isNotEmpty() && currentUser != null
                         ) {
                             isLoading = true
@@ -116,17 +121,17 @@ fun AddExpenseScreen(navController: NavController) {
                                 "userId" to currentUser.uid
                             )
 
-                            db.collection("expenses")
-                                .add(data)
-                                .addOnSuccessListener {
+                            db?.collection("expenses")
+                                ?.add(data)
+                                ?.addOnSuccessListener {
                                     isLoading = false
                                     navController.navigate("dashboard")
                                 }
-                                .addOnFailureListener { e ->
+                                ?.addOnFailureListener { e ->
                                     isLoading = false
                                     errorMessage = e.localizedMessage ?: "Error occurred"
                                 }
-                        } else {
+                        } else if (!isPreview) {
                             errorMessage = "Please fill in all fields"
                         }
                     },
@@ -141,5 +146,15 @@ fun AddExpenseScreen(navController: NavController) {
                 Text(errorMessage, color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+}
+
+
+@Preview(showBackground = true)
+@Composable
+fun AddExpenseScreenPreview() {
+    MaterialTheme {
+        val mockNavController = rememberNavController()
+        AddExpenseScreen(navController = mockNavController)
     }
 }

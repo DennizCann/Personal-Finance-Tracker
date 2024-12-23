@@ -5,13 +5,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun LoginScreen(navController: NavController) {
+    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var errorMessage by remember { mutableStateOf("") }
@@ -49,9 +52,11 @@ fun LoginScreen(navController: NavController) {
 
             Button(
                 onClick = {
-                    loginWithEmailAndPassword(email, password, navController) { success, error ->
-                        if (!success) {
-                            errorMessage = error ?: "Unknown error"
+                    if (!isPreview) {
+                        loginWithEmailAndPassword(email, password, navController) { success, error ->
+                            if (!success) {
+                                errorMessage = error ?: "Unknown error"
+                            }
                         }
                     }
                 },
@@ -59,7 +64,6 @@ fun LoginScreen(navController: NavController) {
             ) {
                 Text("Login")
             }
-
 
             if (errorMessage.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
@@ -70,7 +74,9 @@ fun LoginScreen(navController: NavController) {
 
             TextButton(
                 onClick = {
-                    navController.navigate("register")
+                    if (!isPreview) {
+                        navController.navigate("register")
+                    }
                 }
             ) {
                 Text("Don't have an account? Register")
@@ -89,10 +95,19 @@ fun loginWithEmailAndPassword(
     auth.signInWithEmailAndPassword(email, password)
         .addOnCompleteListener { task ->
             if (task.isSuccessful) {
-                navController.navigate("dashboard") // Başarılı girişte Dashboard'a yönlendir
+                navController.navigate("dashboard")
                 callback(true, null)
             } else {
                 callback(false, task.exception?.localizedMessage)
             }
         }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun LoginScreenPreview() {
+    MaterialTheme {
+        val mockNavController = androidx.navigation.compose.rememberNavController()
+        LoginScreen(navController = mockNavController)
+    }
 }

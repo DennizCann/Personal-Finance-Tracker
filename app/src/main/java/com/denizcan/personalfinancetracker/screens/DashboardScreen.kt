@@ -9,9 +9,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.time.LocalDate
@@ -82,57 +85,60 @@ fun DashboardScreen(navController: NavController) {
     var remainingBalance by remember { mutableStateOf(0.0) }
     var currency by remember { mutableStateOf("TRY") }
 
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
     // Firestore'dan kullanıcı bilgilerini çek
-    LaunchedEffect(currentUser) {
-        currentUser?.let { user ->
-            // Profil Bilgilerini Çek
-            db.collection("profiles").document(user.uid)
-                .get()
-                .addOnSuccessListener { document ->
-                    if (document != null && document.exists()) {
-                        name = document.getString("name") ?: "User"
-                        currency = document.getString("currency") ?: "TRY"
-                        val dateOfBirth = document.getString("dateOfBirth")
-                        if (!dateOfBirth.isNullOrEmpty()) {
-                            try {
-                                val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
-                                val birthDate = LocalDate.parse(dateOfBirth, formatter)
-                                age = Period.between(birthDate, LocalDate.now()).years
-                            } catch (e: DateTimeParseException) {
+    if (!isPreview) {
+        LaunchedEffect(currentUser) {
+            currentUser?.let { user ->
+                // Profil Bilgilerini Çek
+                db?.collection("profiles")?.document(user.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { document ->
+                        if (document != null && document.exists()) {
+                            name = document.getString("name") ?: "User"
+                            currency = document.getString("currency") ?: "TRY"
+                            val dateOfBirth = document.getString("dateOfBirth")
+                            if (!dateOfBirth.isNullOrEmpty()) {
+                                try {
+                                    val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+                                    val birthDate = LocalDate.parse(dateOfBirth, formatter)
+                                    age = Period.between(birthDate, LocalDate.now()).years
+                                } catch (e: DateTimeParseException) {
+                                    age = 0
+                                }
+                            } else {
                                 age = 0
                             }
-                        } else {
-                            age = 0
                         }
                     }
-                }
 
-            // Gelirleri Topla
-            db.collection("incomes")
-                .whereEqualTo("userId", user.uid)
-                .get()
-                .addOnSuccessListener { result ->
-                    val totalIncome = result.documents.sumOf { doc ->
-                        doc.getDouble("amount") ?: 0.0
+                // Gelirleri Topla
+                db?.collection("incomes")
+                    ?.whereEqualTo("userId", user.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { result ->
+                        val totalIncome = result.documents.sumOf { doc ->
+                            doc.getDouble("amount") ?: 0.0
+                        }
+                        income = totalIncome
+                        remainingBalance = income - expenses
                     }
-                    income = totalIncome
-                    remainingBalance = income - expenses
-                }
 
-            // Giderleri Topla
-            db.collection("expenses")
-                .whereEqualTo("userId", user.uid)
-                .get()
-                .addOnSuccessListener { result ->
-                    val totalExpenses = result.documents.sumOf { doc ->
-                        doc.getDouble("amount") ?: 0.0
+                // Giderleri Topla
+                db?.collection("expenses")
+                    ?.whereEqualTo("userId", user.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { result ->
+                        val totalExpenses = result.documents.sumOf { doc ->
+                            doc.getDouble("amount") ?: 0.0
+                        }
+                        expenses = totalExpenses
+                        remainingBalance = income - expenses
                     }
-                    expenses = totalExpenses
-                    remainingBalance = income - expenses
-                }
+            }
         }
     }
 
@@ -148,13 +154,12 @@ fun DashboardScreen(navController: NavController) {
                 }
             },
             modifier = Modifier
-                .align(Alignment.BottomStart) // Sol alt köşe
-                .padding(16.dp), // Kenar boşlukları
-            colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.error) // Kırmızı tonlarında buton
+                .align(Alignment.BottomStart)
+                .padding(16.dp),
+            colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.error)
         ) {
             Text("Logout", style = MaterialTheme.typography.bodySmall)
         }
-
 
         // Ana İçerik
         Column(
@@ -241,5 +246,27 @@ fun DashboardScreen(navController: NavController) {
         ) {
             Text("+", fontSize = 24.sp, color = MaterialTheme.colorScheme.onPrimary)
         }
+    }
+}
+
+
+@Preview(showBackground = true)
+@Composable
+fun DashboardScreenPreview() {
+    MaterialTheme {
+        val mockNavController = rememberNavController()
+        DashboardScreen(navController = mockNavController)
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun PieChartPreview() {
+    MaterialTheme {
+        PieChart(
+            income = 5000.0,
+            expenses = 3000.0,
+            remainingBalance = 2000.0
+        )
     }
 }

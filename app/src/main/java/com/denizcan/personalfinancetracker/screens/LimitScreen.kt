@@ -15,64 +15,65 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 
 @Composable
 fun LimitScreen(navController: NavController) {
-    val context = LocalContext.current // Context'i LocalContext ile al
+    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
+    val context = LocalContext.current
     var totalExpenses by remember { mutableStateOf(0.0) }
     var limit by remember { mutableStateOf("") }
-    var savedLimit by remember { mutableStateOf<Double?>(null) } // Girilmiş limiti saklamak için
+    var savedLimit by remember { mutableStateOf<Double?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
-    var hasNotificationPermission by remember { mutableStateOf(false) } // Bildirim izni durumu
+    var hasNotificationPermission by remember { mutableStateOf(true) } // Varsayılan olarak true
 
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
-    // Bildirim izni kontrolü ve talebi
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         hasNotificationPermission = isGranted
     }
 
-    LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 ve üzeri
-            if (ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+    if (!isPreview) {
+        LaunchedEffect(Unit) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 ve üzeri
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    hasNotificationPermission = true
+                }
             } else {
                 hasNotificationPermission = true
             }
-        } else {
-            hasNotificationPermission = true
         }
-    }
 
-    // Giderleri ve limiti Firestore'dan çek
-    LaunchedEffect(Unit) {
+        // Giderleri ve limiti Firestore'dan çek
         if (currentUser != null) {
             isLoading = true
 
-            db.collection("expenses")
-                .whereEqualTo("userId", currentUser.uid)
-                .get()
-                .addOnSuccessListener { documents ->
+            db?.collection("expenses")
+                ?.whereEqualTo("userId", currentUser.uid)
+                ?.get()
+                ?.addOnSuccessListener { documents ->
                     totalExpenses = documents.sumOf { it.getDouble("amount") ?: 0.0 }
                     isLoading = false
 
-                    // Harcamalar limiti aşıyor mu kontrol et
                     if (savedLimit != null && totalExpenses >= savedLimit!! && hasNotificationPermission) {
                         sendNotification(
                             context,
@@ -80,20 +81,19 @@ fun LimitScreen(navController: NavController) {
                         )
                     }
                 }
-                .addOnFailureListener { e ->
+                ?.addOnFailureListener { e ->
                     errorMessage = e.localizedMessage ?: "Error fetching expenses"
                     isLoading = false
                 }
 
-            // Kaydedilmiş limiti çek
-            db.collection("limits").document(currentUser.uid)
-                .get()
-                .addOnSuccessListener { document ->
+            db?.collection("limits")?.document(currentUser.uid)
+                ?.get()
+                ?.addOnSuccessListener { document ->
                     if (document.exists()) {
-                        savedLimit = document.getDouble("limit") // Girilmiş limit
+                        savedLimit = document.getDouble("limit")
                     }
                 }
-                .addOnFailureListener { e ->
+                ?.addOnFailureListener { e ->
                     errorMessage = e.localizedMessage ?: "Error fetching limit"
                 }
         } else {
@@ -115,7 +115,6 @@ fun LimitScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Kaydedilmiş limiti göster
             if (savedLimit != null) {
                 Text(
                     text = "Current Limit: ${"%.2f".format(savedLimit)}",
@@ -125,7 +124,6 @@ fun LimitScreen(navController: NavController) {
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Toplam Giderler Gösterimi
             Text(
                 text = "Total Expenses: ${"%.2f".format(totalExpenses)}",
                 style = MaterialTheme.typography.bodyLarge
@@ -133,7 +131,6 @@ fun LimitScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Limit Girişi
             OutlinedTextField(
                 value = limit,
                 onValueChange = { limit = it },
@@ -144,7 +141,6 @@ fun LimitScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Kaydet Butonu
             if (isLoading) {
                 CircularProgressIndicator()
             } else {
@@ -157,15 +153,15 @@ fun LimitScreen(navController: NavController) {
                                 "limit" to enteredLimit,
                                 "userId" to currentUser.uid
                             )
-                            db.collection("limits")
-                                .document(currentUser.uid)
-                                .set(data)
-                                .addOnSuccessListener {
+                            db?.collection("limits")
+                                ?.document(currentUser.uid)
+                                ?.set(data)
+                                ?.addOnSuccessListener {
                                     isLoading = false
-                                    savedLimit = enteredLimit // Yeni limiti güncelle
+                                    savedLimit = enteredLimit
                                     navController.navigate("dashboard")
                                 }
-                                .addOnFailureListener { e ->
+                                ?.addOnFailureListener { e ->
                                     errorMessage = e.localizedMessage ?: "Error saving limit"
                                     isLoading = false
                                 }
@@ -179,7 +175,6 @@ fun LimitScreen(navController: NavController) {
                 }
             }
 
-            // Hata Mesajı
             if (errorMessage.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(errorMessage, color = MaterialTheme.colorScheme.error)
@@ -197,8 +192,6 @@ private fun sendNotification(context: Context, message: String) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            // İzin verilmemişse işlem yapma
-            println("Notification permission not granted")
             return
         }
     }
@@ -216,16 +209,21 @@ private fun sendNotification(context: Context, message: String) {
         notificationManager.createNotificationChannel(channel)
     }
 
-    try {
-        val notification = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle("Expense Limit Exceeded")
-            .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .build()
+    val notification = NotificationCompat.Builder(context, channelId)
+        .setSmallIcon(android.R.drawable.ic_dialog_alert)
+        .setContentTitle("Expense Limit Exceeded")
+        .setContentText(message)
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .build()
 
-        NotificationManagerCompat.from(context).notify(notificationId, notification)
-    } catch (e: SecurityException) {
-        println("SecurityException: Notification permission is not granted.")
+    NotificationManagerCompat.from(context).notify(notificationId, notification)
+}
+
+@Preview(showBackground = true)
+@Composable
+fun LimitScreenPreview() {
+    MaterialTheme {
+        val mockNavController = androidx.navigation.compose.rememberNavController()
+        LimitScreen(navController = mockNavController)
     }
 }

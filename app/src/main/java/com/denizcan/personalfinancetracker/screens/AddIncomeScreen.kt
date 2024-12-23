@@ -5,8 +5,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.FirebaseAuth
 
@@ -17,8 +20,10 @@ fun AddIncomeScreen(navController: NavController) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    // Preview sırasında Firebase ve Auth kullanımı engellemek için kontrol
+    val isPreview = LocalInspectionMode.current
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -67,13 +72,13 @@ fun AddIncomeScreen(navController: NavController) {
                                 "userId" to currentUser.uid
                             )
 
-                            db.collection("incomes")
-                                .add(data)
-                                .addOnSuccessListener {
+                            db?.collection("incomes")
+                                ?.add(data)
+                                ?.addOnSuccessListener {
                                     isLoading = false
                                     navController.navigate("dashboard")
                                 }
-                                .addOnFailureListener { e ->
+                                ?.addOnFailureListener { e ->
                                     isLoading = false
                                     errorMessage = e.localizedMessage ?: "Error occurred"
                                 }
@@ -92,5 +97,15 @@ fun AddIncomeScreen(navController: NavController) {
                 Text(errorMessage, color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun AddIncomeScreenPreview() {
+    MaterialTheme {
+        // Mock NavController kullanımı
+        val mockNavController = rememberNavController()
+        AddIncomeScreen(navController = mockNavController)
     }
 }

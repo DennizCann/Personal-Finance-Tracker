@@ -5,6 +5,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
@@ -12,8 +14,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun EditIncomeScreen(navController: NavController, incomeId: String) {
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
@@ -21,17 +24,19 @@ fun EditIncomeScreen(navController: NavController, incomeId: String) {
     var errorMessage by remember { mutableStateOf("") }
 
     // Firestore'dan gelir bilgilerini çek
-    LaunchedEffect(currentUser, incomeId) {
-        currentUser?.let {
-            db.collection("incomes").document(incomeId)
-                .get()
-                .addOnSuccessListener { document ->
-                    name = document.getString("name") ?: ""
-                    amount = document.getDouble("amount")?.toString() ?: ""
-                }
-                .addOnFailureListener {
-                    errorMessage = it.localizedMessage ?: "An error occurred"
-                }
+    if (!isPreview) {
+        LaunchedEffect(currentUser, incomeId) {
+            currentUser?.let {
+                db?.collection("incomes")?.document(incomeId)
+                    ?.get()
+                    ?.addOnSuccessListener { document ->
+                        name = document.getString("name") ?: ""
+                        amount = document.getDouble("amount")?.toString() ?: ""
+                    }
+                    ?.addOnFailureListener {
+                        errorMessage = it.localizedMessage ?: "An error occurred"
+                    }
+            }
         }
     }
 
@@ -77,13 +82,13 @@ fun EditIncomeScreen(navController: NavController, incomeId: String) {
                     onClick = {
                         if (name.isNotEmpty() && amount.isNotEmpty()) {
                             isLoading = true
-                            db.collection("incomes").document(incomeId)
-                                .update("name", name, "amount", amount.toDouble())
-                                .addOnSuccessListener {
+                            db?.collection("incomes")?.document(incomeId)
+                                ?.update("name", name, "amount", amount.toDouble())
+                                ?.addOnSuccessListener {
                                     isLoading = false
                                     navController.popBackStack() // Geri dön
                                 }
-                                .addOnFailureListener {
+                                ?.addOnFailureListener {
                                     isLoading = false
                                     errorMessage = it.localizedMessage ?: "An error occurred"
                                 }
@@ -102,5 +107,14 @@ fun EditIncomeScreen(navController: NavController, incomeId: String) {
                 Text(text = errorMessage, color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun EditIncomeScreenPreview() {
+    MaterialTheme {
+        val mockNavController = androidx.navigation.compose.rememberNavController()
+        EditIncomeScreen(navController = mockNavController, incomeId = "mockIncomeId")
     }
 }
