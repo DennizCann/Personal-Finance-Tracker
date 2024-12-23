@@ -1,40 +1,84 @@
 package com.denizcan.personalfinancetracker.screens
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 
 @Composable
 fun LimitScreen(navController: NavController) {
+    val context = LocalContext.current // Context'i LocalContext ile al
     var totalExpenses by remember { mutableStateOf(0.0) }
     var limit by remember { mutableStateOf("") }
     var savedLimit by remember { mutableStateOf<Double?>(null) } // Girilmiş limiti saklamak için
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
+    var hasNotificationPermission by remember { mutableStateOf(false) } // Bildirim izni durumu
 
     val db = FirebaseFirestore.getInstance()
     val currentUser = FirebaseAuth.getInstance().currentUser
+
+    // Bildirim izni kontrolü ve talebi
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasNotificationPermission = isGranted
+    }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 ve üzeri
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                hasNotificationPermission = true
+            }
+        } else {
+            hasNotificationPermission = true
+        }
+    }
 
     // Giderleri ve limiti Firestore'dan çek
     LaunchedEffect(Unit) {
         if (currentUser != null) {
             isLoading = true
 
-            // Toplam giderleri çek
             db.collection("expenses")
                 .whereEqualTo("userId", currentUser.uid)
                 .get()
                 .addOnSuccessListener { documents ->
                     totalExpenses = documents.sumOf { it.getDouble("amount") ?: 0.0 }
                     isLoading = false
+
+                    // Harcamalar limiti aşıyor mu kontrol et
+                    if (savedLimit != null && totalExpenses >= savedLimit!! && hasNotificationPermission) {
+                        sendNotification(
+                            context,
+                            "Your expenses have exceeded the limit of ${"%.2f".format(savedLimit)}."
+                        )
+                    }
                 }
                 .addOnFailureListener { e ->
                     errorMessage = e.localizedMessage ?: "Error fetching expenses"
@@ -141,5 +185,47 @@ fun LimitScreen(navController: NavController) {
                 Text(errorMessage, color = MaterialTheme.colorScheme.error)
             }
         }
+    }
+}
+
+private fun sendNotification(context: Context, message: String) {
+    val channelId = "expense_limit_channel"
+    val channelName = "Expense Limit Alerts"
+    val notificationId = 1
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) { // Android 13 ve üzeri
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            // İzin verilmemişse işlem yapma
+            println("Notification permission not granted")
+            return
+        }
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val channel = NotificationChannel(
+            channelId,
+            channelName,
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = "Notifications for expense limit"
+        }
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
+    }
+
+    try {
+        val notification = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("Expense Limit Exceeded")
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+
+        NotificationManagerCompat.from(context).notify(notificationId, notification)
+    } catch (e: SecurityException) {
+        println("SecurityException: Notification permission is not granted.")
     }
 }
