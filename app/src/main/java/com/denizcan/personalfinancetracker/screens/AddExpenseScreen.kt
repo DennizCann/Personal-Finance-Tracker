@@ -1,24 +1,31 @@
 package com.denizcan.personalfinancetracker.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun AddExpenseScreen(navController: NavController) {
     var expenseName by remember { mutableStateOf("") }
     var expenseAmount by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("") }
+    var isDropdownExpanded by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
     val db = FirebaseFirestore.getInstance()
     val currentUser = FirebaseAuth.getInstance().currentUser
+
+    val categories = listOf("Education", "Food", "Transportation", "Health", "Entertainment", "Other")
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -34,7 +41,7 @@ fun AddExpenseScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Gider İsmi Girişi
+            // Expense Name Input
             OutlinedTextField(
                 value = expenseName,
                 onValueChange = { expenseName = it },
@@ -44,13 +51,52 @@ fun AddExpenseScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Gider Miktarı Girişi
+            // Expense Amount Input
             OutlinedTextField(
                 value = expenseAmount,
                 onValueChange = { expenseAmount = it },
                 label = { Text("Expense Amount") },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Category Selection Dropdown
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = selectedCategory,
+                    onValueChange = {},
+                    label = { Text("Select Category") },
+                    readOnly = true,
+                    trailingIcon = {
+                        IconButton(onClick = { isDropdownExpanded = !isDropdownExpanded }) {
+                            Icon(
+                                imageVector = if (isDropdownExpanded)
+                                    Icons.Filled.ArrowDropUp
+                                else
+                                    Icons.Filled.ArrowDropDown,
+                                contentDescription = null
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                DropdownMenu(
+                    expanded = isDropdownExpanded,
+                    onDismissRequest = { isDropdownExpanded = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    categories.forEach { category ->
+                        DropdownMenuItem(
+                            text = { Text(category) },
+                            onClick = {
+                                selectedCategory = category
+                                isDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -59,11 +105,14 @@ fun AddExpenseScreen(navController: NavController) {
             } else {
                 Button(
                     onClick = {
-                        if (expenseName.isNotEmpty() && expenseAmount.isNotEmpty() && currentUser != null) {
+                        if (expenseName.isNotEmpty() && expenseAmount.isNotEmpty() &&
+                            selectedCategory.isNotEmpty() && currentUser != null
+                        ) {
                             isLoading = true
                             val data = mapOf(
                                 "name" to expenseName,
                                 "amount" to expenseAmount.toDouble(),
+                                "category" to selectedCategory,
                                 "userId" to currentUser.uid
                             )
 
