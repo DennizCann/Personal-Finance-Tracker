@@ -1,5 +1,6 @@
 package com.denizcan.personalfinancetracker.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
@@ -93,7 +94,10 @@ fun ViewIncomeScreen(navController: NavController) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(4.dp),
+                        .padding(4.dp)
+                        .clickable { // Gelir tıklanabilir hale getirildi
+                            navController.navigate("editIncome/$id") // EditIncomeScreen'e yönlendirme
+                        },
                     verticalAlignment = Alignment.CenterVertically, // Satır hizalama
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
