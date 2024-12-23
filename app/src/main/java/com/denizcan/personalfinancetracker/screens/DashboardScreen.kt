@@ -156,7 +156,7 @@ fun DashboardScreen(navController: NavController) {
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(16.dp),
-            colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.error)
+            colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.primary)
         ) {
             Text("Logout", style = MaterialTheme.typography.bodySmall)
         }
