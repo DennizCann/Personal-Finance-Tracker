@@ -1,10 +1,14 @@
 package com.denizcan.personalfinancetracker.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -14,6 +18,60 @@ import java.time.LocalDate
 import java.time.Period
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+
+@Composable
+fun PieChart(income: Double, expenses: Double, remainingBalance: Double) {
+    val total = income + expenses + remainingBalance
+    if (total == 0.0) return // Grafik çizmek için veri yoksa çıkış
+
+    val incomePercentage = (income / total).toFloat()
+    val expensesPercentage = (expenses / total).toFloat()
+    val remainingPercentage = (remainingBalance / total).toFloat()
+
+    // Canvas bir @Composable bağlamda olduğundan burada kullanılabilir
+    Canvas(
+        modifier = Modifier.size(180.dp).padding(16.dp)
+    ) {
+        val pieSize = Size(size.minDimension, size.minDimension)
+        val centerOffset = Offset(size.width / 2 - pieSize.width / 2, size.height / 2 - pieSize.height / 2)
+
+        var startAngle = -90f
+
+        // Gelir dilimi
+        drawArc(
+            color = Color(0xFF6200EE), // Sabit bir renk
+            startAngle = startAngle,
+            sweepAngle = 360 * incomePercentage,
+            useCenter = true,
+            topLeft = centerOffset,
+            size = pieSize
+        )
+        startAngle += 360 * incomePercentage
+
+        // Gider dilimi
+        drawArc(
+            color = Color(0xFF03DAC6), // Sabit bir renk
+            startAngle = startAngle,
+            sweepAngle = 360 * expensesPercentage,
+            useCenter = true,
+            topLeft = centerOffset,
+            size = pieSize
+        )
+        startAngle += 360 * expensesPercentage
+
+        // Kalan bakiye dilimi
+        drawArc(
+            color = Color(0xFFBB86FC), // Sabit bir renk
+            startAngle = startAngle,
+            sweepAngle = 360 * remainingPercentage,
+            useCenter = true,
+            topLeft = centerOffset,
+            size = pieSize
+        )
+    }
+}
+
+
 
 @Composable
 fun DashboardScreen(navController: NavController) {
@@ -99,6 +157,11 @@ fun DashboardScreen(navController: NavController) {
             )
 
             Spacer(modifier = Modifier.height(24.dp))
+
+            // Pasta Grafiği
+            PieChart(income = income, expenses = expenses, remainingBalance = remainingBalance)
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             Card(
                 modifier = Modifier.fillMaxWidth(),

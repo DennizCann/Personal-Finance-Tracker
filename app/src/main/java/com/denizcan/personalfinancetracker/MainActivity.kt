@@ -21,6 +21,7 @@ import com.denizcan.personalfinancetracker.screens.RegisterScreen
 import com.denizcan.personalfinancetracker.screens.ViewExpenseScreen
 import com.denizcan.personalfinancetracker.screens.ViewIncomeScreen
 import com.denizcan.personalfinancetracker.screens.ViewScreen
+import com.denizcan.personalfinancetracker.ui.theme.PersonalFinanceTrackerTheme
 import com.google.firebase.FirebaseApp
 
 class MainActivity : ComponentActivity() {
@@ -28,49 +29,52 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this) // Firebase'i başlat
         setContent {
-            val navController: NavHostController = rememberNavController()
-            MaterialTheme {
-                Surface {
-                    NavHost(navController = navController, startDestination = "login") {
-                        composable("login") {
-                            LoginScreen(navController)
-                        }
-                        composable("register") {
-                            RegisterScreen(navController)
-                        }
-                        composable("dashboard") {
-                            DashboardScreen(navController)
-                        }
-                        composable("add") {
-                            AddScreen(navController)
-                        }
-                        composable("addIncome") {
-                            AddIncomeScreen(navController)
-                        }
-                        composable("addExpense") {
-                            AddExpenseScreen(navController)
-                        }
-                        composable("editProfile") {
-                            EditProfileScreen(navController)
-                        }
-                        composable("view") {
-                            ViewScreen(navController)
-                        }
-                        composable("viewIncome") {
-                            ViewIncomeScreen(navController)
-                        }
-                        composable("viewExpense") {
-                            ViewExpenseScreen(navController)
-                        }
-                        // Edit Income Screen için rota
-                        composable("editIncome/{incomeId}") { backStackEntry ->
-                            val incomeId = backStackEntry.arguments?.getString("incomeId") ?: ""
-                            EditIncomeScreen(navController, incomeId)
-                        }
-                        // Edit Expense Screen için rota
-                        composable("editExpense/{expenseId}") { backStackEntry ->
-                            val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
-                            EditExpenseScreen(navController, expenseId)
+            PersonalFinanceTrackerTheme {
+                val navController: NavHostController = rememberNavController()
+                MaterialTheme {
+                    Surface {
+                        NavHost(navController = navController, startDestination = "login") {
+                            composable("login") {
+                                LoginScreen(navController)
+                            }
+                            composable("register") {
+                                RegisterScreen(navController)
+                            }
+                            composable("dashboard") {
+                                DashboardScreen(navController)
+                            }
+                            composable("add") {
+                                AddScreen(navController)
+                            }
+                            composable("addIncome") {
+                                AddIncomeScreen(navController)
+                            }
+                            composable("addExpense") {
+                                AddExpenseScreen(navController)
+                            }
+                            composable("editProfile") {
+                                EditProfileScreen(navController)
+                            }
+                            composable("view") {
+                                ViewScreen(navController)
+                            }
+                            composable("viewIncome") {
+                                ViewIncomeScreen(navController)
+                            }
+                            composable("viewExpense") {
+                                ViewExpenseScreen(navController)
+                            }
+                            // Edit Income Screen için rota
+                            composable("editIncome/{incomeId}") { backStackEntry ->
+                                val incomeId = backStackEntry.arguments?.getString("incomeId") ?: ""
+                                EditIncomeScreen(navController, incomeId)
+                            }
+                            // Edit Expense Screen için rota
+                            composable("editExpense/{expenseId}") { backStackEntry ->
+                                val expenseId =
+                                    backStackEntry.arguments?.getString("expenseId") ?: ""
+                                EditExpenseScreen(navController, expenseId)
+                            }
                         }
                     }
                 }
