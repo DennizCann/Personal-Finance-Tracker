@@ -80,7 +80,7 @@ fun DashboardScreen(navController: NavController) {
     var income by remember { mutableStateOf(0.0) }
     var expenses by remember { mutableStateOf(0.0) }
     var remainingBalance by remember { mutableStateOf(0.0) }
-    var currency by remember { mutableStateOf("TRY") } // Varsayılan para birimi
+    var currency by remember { mutableStateOf("TRY") }
 
     val db = FirebaseFirestore.getInstance()
     val currentUser = FirebaseAuth.getInstance().currentUser
@@ -137,9 +137,26 @@ fun DashboardScreen(navController: NavController) {
     }
 
     Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        modifier = Modifier.fillMaxSize()
     ) {
+        // Logout Butonu Sol Altta
+        Button(
+            onClick = {
+                FirebaseAuth.getInstance().signOut()
+                navController.navigate("login") {
+                    popUpTo("login") { inclusive = true }
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomStart) // Sol alt köşe
+                .padding(16.dp), // Kenar boşlukları
+            colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.error) // Kırmızı tonlarında buton
+        ) {
+            Text("Logout", style = MaterialTheme.typography.bodySmall)
+        }
+
+
+        // Ana İçerik
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
@@ -170,8 +187,8 @@ fun DashboardScreen(navController: NavController) {
                 Column(
                     modifier = Modifier
                         .padding(16.dp)
-                        .fillMaxWidth(), // Tüm genişliği doldur
-                    horizontalAlignment = Alignment.Start // Sola hizalı yapıldı
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.Start
                 ) {
                     Text("Income: ${income} $currency", style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -186,41 +203,31 @@ fun DashboardScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Edit Profile Button
-            Button(
-                onClick = {
-                    navController.navigate("editProfile")
-                },
-                modifier = Modifier.fillMaxWidth()
+            // Diğer Butonlar
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                Text("Edit Profile")
-            }
+                Button(
+                    onClick = { navController.navigate("editProfile") },
+                    modifier = Modifier.size(100.dp, 40.dp)
+                ) {
+                    Text("Profile")
+                }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = { navController.navigate("view") },
+                    modifier = Modifier.size(100.dp, 40.dp)
+                ) {
+                    Text("Records")
+                }
 
-            // View Records Button
-            Button(
-                onClick = {
-                    navController.navigate("view") // ViewScreen ekranına geçiş
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("View Records") // Yeni buton
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Logout Button
-            Button(
-                onClick = {
-                    FirebaseAuth.getInstance().signOut()
-                    navController.navigate("login") {
-                        popUpTo("login") { inclusive = true }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Logout")
+                Button(
+                    onClick = { navController.navigate("limit") },
+                    modifier = Modifier.size(100.dp, 40.dp)
+                ) {
+                    Text("Limit")
+                }
             }
         }
 

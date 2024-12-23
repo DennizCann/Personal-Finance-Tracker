@@ -13,9 +13,10 @@ import com.denizcan.personalfinancetracker.screens.AddExpenseScreen
 import com.denizcan.personalfinancetracker.screens.AddIncomeScreen
 import com.denizcan.personalfinancetracker.screens.AddScreen
 import com.denizcan.personalfinancetracker.screens.DashboardScreen
-import com.denizcan.personalfinancetracker.screens.EditExpenseScreen // EditExpenseScreen import edildi
+import com.denizcan.personalfinancetracker.screens.EditExpenseScreen
 import com.denizcan.personalfinancetracker.screens.EditIncomeScreen
 import com.denizcan.personalfinancetracker.screens.EditProfileScreen
+import com.denizcan.personalfinancetracker.screens.LimitScreen // LimitScreen import edildi
 import com.denizcan.personalfinancetracker.screens.LoginScreen
 import com.denizcan.personalfinancetracker.screens.RegisterScreen
 import com.denizcan.personalfinancetracker.screens.ViewExpenseScreen
@@ -71,9 +72,12 @@ class MainActivity : ComponentActivity() {
                             }
                             // Edit Expense Screen için rota
                             composable("editExpense/{expenseId}") { backStackEntry ->
-                                val expenseId =
-                                    backStackEntry.arguments?.getString("expenseId") ?: ""
+                                val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
                                 EditExpenseScreen(navController, expenseId)
+                            }
+                            // Limit Screen için rota
+                            composable("limit") {
+                                LimitScreen(navController)
                             }
                         }
                     }
