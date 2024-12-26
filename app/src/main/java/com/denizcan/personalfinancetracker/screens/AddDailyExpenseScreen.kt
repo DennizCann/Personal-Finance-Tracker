@@ -5,22 +5,26 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import androidx.navigation.compose.rememberNavController
+import com.denizcan.personalfinancetracker.network.CurrencyViewModel
 import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
-fun AddDailyExpenseScreen(navController: NavController) {
+fun AddDailyExpenseScreen(
+    navController: NavController,
+    currencyViewModel: CurrencyViewModel = viewModel()
+) {
     val expenseName = remember { mutableStateOf("") }
     val expenseAmount = remember { mutableStateOf("") }
     val dailyExpenses = remember { mutableStateListOf<Map<String, Any>>() }
     val totalDailyExpense = remember { mutableStateOf(0.0) }
-    val currency = remember { mutableStateOf("TRY") }
+    val baseCurrency by currencyViewModel.baseCurrency.observeAsState("TRY")
     val isPreview = LocalInspectionMode.current
 
     if (!isPreview) {
@@ -28,24 +32,20 @@ fun AddDailyExpenseScreen(navController: NavController) {
         val currentDate = "2024-12-26" // Örnek bir tarih
 
         LaunchedEffect(Unit) {
+            // Günlük harcamaları dinamik olarak yükle
             db.collection("daily_expenses")
                 .whereEqualTo("date", currentDate)
-                .get()
-                .addOnSuccessListener { result ->
-                    val expenses = result.documents.mapNotNull { it.data?.plus("id" to it.id) }
-                    dailyExpenses.clear()
-                    dailyExpenses.addAll(expenses)
-                    totalDailyExpense.value = expenses.sumOf { it["amount"].toString().toDoubleOrNull() ?: 0.0 }
-                }
-
-            db.collection("profiles")
-                .document("userProfile")
-                .get()
-                .addOnSuccessListener { document ->
-                    currency.value = document.getString("currency") ?: "TRY"
+                .addSnapshotListener { result, error ->
+                    if (error == null && result != null) {
+                        val expenses = result.documents.mapNotNull { it.data?.plus("id" to it.id) }
+                        dailyExpenses.clear()
+                        dailyExpenses.addAll(expenses)
+                        totalDailyExpense.value = expenses.sumOf { it["amount"].toString().toDoubleOrNull() ?: 0.0 }
+                    }
                 }
         }
     } else {
+        // Mock veriler
         dailyExpenses.addAll(
             listOf(
                 mapOf("name" to "Lunch", "amount" to 25.0, "id" to "1"),
@@ -53,7 +53,6 @@ fun AddDailyExpenseScreen(navController: NavController) {
             )
         )
         totalDailyExpense.value = 40.0
-        currency.value = "TRY"
     }
 
     Column(
@@ -115,7 +114,7 @@ fun AddDailyExpenseScreen(navController: NavController) {
         ) {
             item {
                 Text(
-                    text = "Today's Expenses: ${totalDailyExpense.value} ${currency.value}",
+                    text = "Today's Expenses: ${totalDailyExpense.value} $baseCurrency",
                     style = MaterialTheme.typography.headlineSmall,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
@@ -130,7 +129,7 @@ fun AddDailyExpenseScreen(navController: NavController) {
                         modifier = Modifier.padding(16.dp)
                     ) {
                         Text("Name: ${expense["name"]}", style = MaterialTheme.typography.titleMedium)
-                        Text("Amount: ${expense["amount"]} ${currency.value}", style = MaterialTheme.typography.titleMedium)
+                        Text("Amount: ${expense["amount"]} $baseCurrency", style = MaterialTheme.typography.titleMedium)
                         Row(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
@@ -145,7 +144,6 @@ fun AddDailyExpenseScreen(navController: NavController) {
                             ) {
                                 Text("Edit")
                             }
-
 
                             Button(
                                 onClick = {
@@ -172,14 +170,5 @@ fun AddDailyExpenseScreen(navController: NavController) {
                 }
             }
         }
-    }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun AddDailyExpenseScreenPreview() {
-    MaterialTheme {
-        val mockNavController = rememberNavController()
-        AddDailyExpenseScreen(navController = mockNavController)
     }
 }
