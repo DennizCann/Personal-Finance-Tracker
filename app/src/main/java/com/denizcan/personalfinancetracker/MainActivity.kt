@@ -17,6 +17,7 @@ import androidx.navigation.NavType
 import androidx.navigation.navArgument
 import com.denizcan.personalfinancetracker.network.CurrencyViewModel
 import com.denizcan.personalfinancetracker.network.ExchangeRatesViewModel
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,6 +26,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             PersonalFinanceTrackerTheme {
                 val navController: NavHostController = rememberNavController()
+
+                // Firebase kullanıcı kimliği
+                val currentUser = FirebaseAuth.getInstance().currentUser
+                val userId = currentUser?.uid ?: ""
 
                 // viewModels for ExchangeRatesScreen
                 val currencyViewModel: CurrencyViewModel = viewModel()
@@ -52,7 +57,7 @@ class MainActivity : ComponentActivity() {
                                 AddExpenseScreen(navController)
                             }
                             composable("addDailyExpense") {
-                                AddDailyExpenseScreen(navController)
+                                AddDailyExpenseScreen(navController = navController, userId = userId)
                             }
                             composable(
                                 "editDailyExpense/{expenseId}/{expenseName}/{expenseAmount}",
@@ -80,21 +85,17 @@ class MainActivity : ComponentActivity() {
                             composable("viewExpense") {
                                 ViewExpenseScreen(navController)
                             }
-                            // Edit Income Screen için rota
                             composable("editIncome/{incomeId}") { backStackEntry ->
                                 val incomeId = backStackEntry.arguments?.getString("incomeId") ?: ""
                                 EditIncomeScreen(navController, incomeId)
                             }
-                            // Edit Expense Screen için rota
                             composable("editExpense/{expenseId}") { backStackEntry ->
                                 val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
                                 EditExpenseScreen(navController, expenseId)
                             }
-                            // Limit Screen için rota
                             composable("limit") {
                                 LimitScreen(navController)
                             }
-                            // Exchange Rates Screen için rota
                             composable("exchangeRates") {
                                 ExchangeRatesScreen(
                                     navController = navController,

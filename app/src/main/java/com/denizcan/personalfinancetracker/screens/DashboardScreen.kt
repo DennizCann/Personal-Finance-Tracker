@@ -142,6 +142,7 @@ fun DashboardScreen(navController: NavController) {
                 // Günlük Harcamaları Ay Bazında Topla
                 val currentMonth = LocalDate.now().monthValue
                 db?.collection("daily_expenses")
+                    ?.whereEqualTo("userId", user.uid) // Kullanıcı kimliği filtresi eklendi
                     ?.get()
                     ?.addOnSuccessListener { result ->
                         val monthlyExpenses = result.documents.filter { doc ->
@@ -159,6 +160,7 @@ fun DashboardScreen(navController: NavController) {
                         expenses += dailyExpensesForMonth // Giderlere ekle
                         remainingBalance = income - expenses
                     }
+
             }
         }
     }

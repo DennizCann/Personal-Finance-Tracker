@@ -8,51 +8,50 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.denizcan.personalfinancetracker.network.CurrencyViewModel
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun AddDailyExpenseScreen(
     navController: NavController,
+    userId: String, // Kullanıcı kimliği
     currencyViewModel: CurrencyViewModel = viewModel()
 ) {
+    // Firestore ve Firebase Authentication
+    val db = FirebaseFirestore.getInstance()
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val userId = currentUser?.uid ?: "" // Dinamik olarak kullanıcı kimliğini al
+
     val expenseName = remember { mutableStateOf("") }
     val expenseAmount = remember { mutableStateOf("") }
     val dailyExpenses = remember { mutableStateListOf<Map<String, Any>>() }
     val totalDailyExpense = remember { mutableStateOf(0.0) }
     val baseCurrency by currencyViewModel.baseCurrency.observeAsState("TRY")
-    val isPreview = LocalInspectionMode.current
+    val currentDate = "2024-12-26" // Örnek tarih
 
-    if (!isPreview) {
-        val db = FirebaseFirestore.getInstance()
-        val currentDate = "2024-12-26" // Örnek bir tarih
-
-        LaunchedEffect(Unit) {
-            // Günlük harcamaları dinamik olarak yükle
+    // Günlük harcamaları dinamik olarak yükle
+    LaunchedEffect(currentDate, userId) {
+        if (userId.isNotEmpty()) { // Kullanıcı kimliği kontrolü
             db.collection("daily_expenses")
                 .whereEqualTo("date", currentDate)
+                .whereEqualTo("userId", userId) // Kullanıcı kimliği ile filtrele
                 .addSnapshotListener { result, error ->
                     if (error == null && result != null) {
                         val expenses = result.documents.mapNotNull { it.data?.plus("id" to it.id) }
                         dailyExpenses.clear()
                         dailyExpenses.addAll(expenses)
                         totalDailyExpense.value = expenses.sumOf { it["amount"].toString().toDoubleOrNull() ?: 0.0 }
+                    } else {
+                        println("Error fetching daily expenses: ${error?.localizedMessage}")
                     }
                 }
+        } else {
+            println("Error: User ID is empty.")
         }
-    } else {
-        // Mock veriler
-        dailyExpenses.addAll(
-            listOf(
-                mapOf("name" to "Lunch", "amount" to 25.0, "id" to "1"),
-                mapOf("name" to "Coffee", "amount" to 15.0, "id" to "2")
-            )
-        )
-        totalDailyExpense.value = 40.0
     }
 
     Column(
@@ -86,19 +85,31 @@ fun AddDailyExpenseScreen(
 
         Button(
             onClick = {
-                if (!isPreview) {
-                    val expense = hashMapOf(
-                        "name" to expenseName.value,
-                        "amount" to (expenseAmount.value.toDoubleOrNull() ?: 0.0),
-                        "date" to "2024-12-26"
-                    )
+                val amount = expenseAmount.value.toDoubleOrNull() ?: 0.0
+                if (expenseName.value.isNotEmpty() && amount > 0) {
+                    if (userId.isNotEmpty()) {
+                        val expense = hashMapOf(
+                            "name" to expenseName.value,
+                            "amount" to amount,
+                            "date" to currentDate,
+                            "userId" to userId // Kullanıcı kimliği ekleniyor
+                        )
 
-                    FirebaseFirestore.getInstance().collection("daily_expenses")
-                        .add(expense)
-                        .addOnSuccessListener { document ->
-                            dailyExpenses.add(expense + ("id" to document.id))
-                            totalDailyExpense.value += expense["amount"].toString().toDoubleOrNull() ?: 0.0
-                        }
+                        db.collection("daily_expenses")
+                            .add(expense)
+                            .addOnSuccessListener {
+                                println("Expense added successfully.")
+                                expenseName.value = ""
+                                expenseAmount.value = ""
+                            }
+                            .addOnFailureListener { exception ->
+                                println("Error adding document: ${exception.localizedMessage}")
+                            }
+                    } else {
+                        println("Error: User ID is empty.")
+                    }
+                } else {
+                    println("Error: Invalid input.")
                 }
             },
             modifier = Modifier.fillMaxWidth()
@@ -130,9 +141,12 @@ fun AddDailyExpenseScreen(
                     ) {
                         Text("Name: ${expense["name"]}", style = MaterialTheme.typography.titleMedium)
                         Text("Amount: ${expense["amount"]} $baseCurrency", style = MaterialTheme.typography.titleMedium)
+
                         Row(
                             horizontalArrangement = Arrangement.End,
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
                         ) {
                             Button(
                                 onClick = {
@@ -149,17 +163,15 @@ fun AddDailyExpenseScreen(
                                 onClick = {
                                     val id = expense["id"].toString()
 
-                                    if (!isPreview) {
-                                        FirebaseFirestore.getInstance().collection("daily_expenses")
-                                            .document(id)
-                                            .delete()
-                                            .addOnSuccessListener {
-                                                dailyExpenses.remove(expense)
-                                                totalDailyExpense.value = dailyExpenses.sumOf {
-                                                    it["amount"].toString().toDoubleOrNull() ?: 0.0
-                                                }
-                                            }
-                                    }
+                                    db.collection("daily_expenses")
+                                        .document(id)
+                                        .delete()
+                                        .addOnSuccessListener {
+                                            println("Expense deleted successfully.")
+                                        }
+                                        .addOnFailureListener { exception ->
+                                            println("Error deleting document: ${exception.localizedMessage}")
+                                        }
                                 },
                                 colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.error)
                             ) {
