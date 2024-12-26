@@ -16,14 +16,18 @@ import com.denizcan.personalfinancetracker.screens.DashboardScreen
 import com.denizcan.personalfinancetracker.screens.EditExpenseScreen
 import com.denizcan.personalfinancetracker.screens.EditIncomeScreen
 import com.denizcan.personalfinancetracker.screens.EditProfileScreen
-import com.denizcan.personalfinancetracker.screens.LimitScreen // LimitScreen import edildi
+import com.denizcan.personalfinancetracker.screens.LimitScreen
 import com.denizcan.personalfinancetracker.screens.LoginScreen
 import com.denizcan.personalfinancetracker.screens.RegisterScreen
 import com.denizcan.personalfinancetracker.screens.ViewExpenseScreen
 import com.denizcan.personalfinancetracker.screens.ViewIncomeScreen
 import com.denizcan.personalfinancetracker.screens.ViewScreen
+import com.denizcan.personalfinancetracker.screens.ExchangeRatesScreen // Import ExchangeRatesScreen
 import com.denizcan.personalfinancetracker.ui.theme.PersonalFinanceTrackerTheme
 import com.google.firebase.FirebaseApp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.denizcan.personalfinancetracker.network.CurrencyViewModel
+import com.denizcan.personalfinancetracker.network.ExchangeRatesViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -32,6 +36,11 @@ class MainActivity : ComponentActivity() {
         setContent {
             PersonalFinanceTrackerTheme {
                 val navController: NavHostController = rememberNavController()
+
+                // viewModels for ExchangeRatesScreen
+                val currencyViewModel: CurrencyViewModel = viewModel()
+                val exchangeRatesViewModel: ExchangeRatesViewModel = viewModel()
+
                 MaterialTheme {
                     Surface {
                         NavHost(navController = navController, startDestination = "login") {
@@ -79,6 +88,15 @@ class MainActivity : ComponentActivity() {
                             composable("limit") {
                                 LimitScreen(navController)
                             }
+                            // Exchange Rates Screen için rota
+                            composable("exchangeRates") {
+                                ExchangeRatesScreen(
+                                    navController = navController,
+                                    currencyViewModel = currencyViewModel,
+                                    exchangeRatesViewModel = exchangeRatesViewModel
+                                )
+                            }
+
                         }
                     }
                 }

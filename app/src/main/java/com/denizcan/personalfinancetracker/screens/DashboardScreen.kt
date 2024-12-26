@@ -75,7 +75,6 @@ fun PieChart(income: Double, expenses: Double, remainingBalance: Double) {
 }
 
 
-
 @Composable
 fun DashboardScreen(navController: NavController) {
     var name by remember { mutableStateOf("User") }
@@ -233,6 +232,16 @@ fun DashboardScreen(navController: NavController) {
                 ) {
                     Text("Limit")
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Exchange Rates Butonu
+            Button(
+                onClick = { navController.navigate("exchangeRates") },
+                modifier = Modifier.size(200.dp, 40.dp)
+            ) {
+                Text("Exchange Rates")
             }
         }
 
