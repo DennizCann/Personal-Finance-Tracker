@@ -9,23 +9,12 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.denizcan.personalfinancetracker.screens.AddExpenseScreen
-import com.denizcan.personalfinancetracker.screens.AddIncomeScreen
-import com.denizcan.personalfinancetracker.screens.AddScreen
-import com.denizcan.personalfinancetracker.screens.DashboardScreen
-import com.denizcan.personalfinancetracker.screens.EditExpenseScreen
-import com.denizcan.personalfinancetracker.screens.EditIncomeScreen
-import com.denizcan.personalfinancetracker.screens.EditProfileScreen
-import com.denizcan.personalfinancetracker.screens.LimitScreen
-import com.denizcan.personalfinancetracker.screens.LoginScreen
-import com.denizcan.personalfinancetracker.screens.RegisterScreen
-import com.denizcan.personalfinancetracker.screens.ViewExpenseScreen
-import com.denizcan.personalfinancetracker.screens.ViewIncomeScreen
-import com.denizcan.personalfinancetracker.screens.ViewScreen
-import com.denizcan.personalfinancetracker.screens.ExchangeRatesScreen // Import ExchangeRatesScreen
+import com.denizcan.personalfinancetracker.screens.*
 import com.denizcan.personalfinancetracker.ui.theme.PersonalFinanceTrackerTheme
 import com.google.firebase.FirebaseApp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import com.denizcan.personalfinancetracker.network.CurrencyViewModel
 import com.denizcan.personalfinancetracker.network.ExchangeRatesViewModel
 
@@ -62,6 +51,23 @@ class MainActivity : ComponentActivity() {
                             composable("addExpense") {
                                 AddExpenseScreen(navController)
                             }
+                            composable("addDailyExpense") {
+                                AddDailyExpenseScreen(navController)
+                            }
+                            composable(
+                                "editDailyExpense/{expenseId}/{expenseName}/{expenseAmount}",
+                                arguments = listOf(
+                                    navArgument("expenseId") { type = NavType.StringType },
+                                    navArgument("expenseName") { type = NavType.StringType },
+                                    navArgument("expenseAmount") { type = NavType.StringType }
+                                )
+                            ) { backStackEntry ->
+                                val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
+                                val expenseName = backStackEntry.arguments?.getString("expenseName") ?: ""
+                                val expenseAmount = backStackEntry.arguments?.getString("expenseAmount")?.toDoubleOrNull() ?: 0.0
+                                EditDailyExpenseScreen(navController, expenseId, expenseName, expenseAmount)
+                            }
+
                             composable("editProfile") {
                                 EditProfileScreen(navController)
                             }
@@ -96,7 +102,6 @@ class MainActivity : ComponentActivity() {
                                     exchangeRatesViewModel = exchangeRatesViewModel
                                 )
                             }
-
                         }
                     }
                 }

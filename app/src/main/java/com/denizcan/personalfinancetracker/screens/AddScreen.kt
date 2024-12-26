@@ -39,6 +39,14 @@ fun AddScreen(navController: NavController) {
             ) {
                 Text("Add Expense")
             }
+
+            // Yeni Günlük Harcama Ekleme Butonu
+            Button(
+                onClick = { navController.navigate("addDailyExpense") },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Add Daily Expense")
+            }
         }
     }
 }

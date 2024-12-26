@@ -81,6 +81,7 @@ fun DashboardScreen(navController: NavController) {
     var age by remember { mutableStateOf(0) }
     var income by remember { mutableStateOf(0.0) }
     var expenses by remember { mutableStateOf(0.0) }
+    var dailyExpensesForMonth by remember { mutableStateOf(0.0) }
     var remainingBalance by remember { mutableStateOf(0.0) }
     var currency by remember { mutableStateOf("TRY") }
 
@@ -134,7 +135,28 @@ fun DashboardScreen(navController: NavController) {
                         val totalExpenses = result.documents.sumOf { doc ->
                             doc.getDouble("amount") ?: 0.0
                         }
-                        expenses = totalExpenses
+                        expenses = totalExpenses + dailyExpensesForMonth // Günlük giderleri ekle
+                        remainingBalance = income - expenses
+                    }
+
+                // Günlük Harcamaları Ay Bazında Topla
+                val currentMonth = LocalDate.now().monthValue
+                db?.collection("daily_expenses")
+                    ?.get()
+                    ?.addOnSuccessListener { result ->
+                        val monthlyExpenses = result.documents.filter { doc ->
+                            val dateString = doc.getString("date")
+                            if (!dateString.isNullOrEmpty()) {
+                                try {
+                                    val date = LocalDate.parse(dateString, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                                    date.monthValue == currentMonth // Mevcut ayı kontrol et
+                                } catch (e: DateTimeParseException) {
+                                    false
+                                }
+                            } else false
+                        }.sumOf { it.getDouble("amount") ?: 0.0 }
+                        dailyExpensesForMonth = monthlyExpenses
+                        expenses += dailyExpensesForMonth // Giderlere ekle
                         remainingBalance = income - expenses
                     }
             }
@@ -194,9 +216,15 @@ fun DashboardScreen(navController: NavController) {
                         .fillMaxWidth(),
                     horizontalAlignment = Alignment.Start
                 ) {
-                    Text("Income: ${income} $currency", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Income: ${income} $currency",
+                        style = MaterialTheme.typography.titleMedium
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Expenses: ${expenses} $currency", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Expenses: ${expenses} $currency",
+                        style = MaterialTheme.typography.titleMedium
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         "Remaining Balance: ${remainingBalance} $currency",

@@ -22,14 +22,17 @@ import androidx.navigation.NavController
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.navigation.compose.rememberNavController
 
 @Composable
 fun LimitScreen(navController: NavController) {
-    val isPreview = LocalInspectionMode.current
     val context = LocalContext.current
+    val isPreview = LocalInspectionMode.current // Preview kontrolü
+
     var totalExpenses by remember { mutableStateOf(0.0) }
     var limit by remember { mutableStateOf("") }
     var savedLimit by remember { mutableStateOf<Double?>(null) }
@@ -38,64 +41,66 @@ fun LimitScreen(navController: NavController) {
     var hasNotificationPermission by remember { mutableStateOf(false) }
     var hasSentNotification by remember { mutableStateOf(false) }
 
-    val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
+    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
+    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted -> hasNotificationPermission = isGranted }
 
     LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(
-                    context,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        if (!isPreview) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    hasNotificationPermission = true
+                }
             } else {
                 hasNotificationPermission = true
             }
-        } else {
-            hasNotificationPermission = true
-        }
 
-        if (currentUser != null) {
-            isLoading = true
+            if (currentUser != null) {
+                isLoading = true
 
-            fetchExpenses(db, currentUser.uid) { fetchedExpenses ->
-                totalExpenses = fetchedExpenses
-                if (savedLimit != null && totalExpenses >= savedLimit!! && !hasSentNotification) {
-                    sendNotification(
-                        context,
-                        "Your expenses have exceeded the limit of ${"%.2f".format(savedLimit)}."
-                    )
-                    hasSentNotification = true
-                    db.collection("limits").document(currentUser.uid)
-                        .update("notificationSent", true)
-                } else if (savedLimit != null && totalExpenses < savedLimit!!) {
-                    hasSentNotification = false
-                    db.collection("limits").document(currentUser.uid)
-                        .update("notificationSent", false)
-                }
-            }
-
-            db.collection("limits").document(currentUser.uid)
-                .get()
-                .addOnSuccessListener { document ->
-                    if (document.exists()) {
-                        savedLimit = document.getDouble("limit")
-                        hasSentNotification = document.getBoolean("notificationSent") == true
+                fetchExpenses(db, currentUser.uid) { fetchedExpenses ->
+                    totalExpenses = fetchedExpenses
+                    if (savedLimit != null && totalExpenses >= savedLimit!! && !hasSentNotification) {
+                        sendNotification(
+                            context,
+                            "Your expenses have exceeded the limit of ${"%.2f".format(savedLimit)}."
+                        )
+                        hasSentNotification = true
+                        db?.collection("limits")?.document(currentUser.uid)
+                            ?.update("notificationSent", true)
+                    } else if (savedLimit != null && totalExpenses < savedLimit!!) {
+                        hasSentNotification = false
+                        db?.collection("limits")?.document(currentUser.uid)
+                            ?.update("notificationSent", false)
                     }
                 }
-                .addOnFailureListener { e ->
-                    errorMessage = e.localizedMessage ?: "Error fetching limit"
-                }
-                .addOnCompleteListener {
-                    isLoading = false
-                }
-        } else {
-            errorMessage = "User not authenticated"
+
+                db?.collection("limits")?.document(currentUser.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { document ->
+                        if (document.exists()) {
+                            savedLimit = document.getDouble("limit")
+                            hasSentNotification = document.getBoolean("notificationSent") == true
+                        }
+                    }
+                    ?.addOnFailureListener { e ->
+                        errorMessage = e.localizedMessage ?: "Error fetching limit"
+                    }
+                    ?.addOnCompleteListener {
+                        isLoading = false
+                    }
+            } else {
+                errorMessage = "User not authenticated"
+            }
         }
     }
 
@@ -151,10 +156,10 @@ fun LimitScreen(navController: NavController) {
                                 "limit" to enteredLimit,
                                 "userId" to currentUser.uid
                             )
-                            db.collection("limits")
-                                .document(currentUser.uid)
-                                .set(data)
-                                .addOnSuccessListener {
+                            db?.collection("limits")
+                                ?.document(currentUser.uid)
+                                ?.set(data)
+                                ?.addOnSuccessListener {
                                     savedLimit = enteredLimit
                                     db.collection("limits")
                                         .document(currentUser.uid)
@@ -167,10 +172,10 @@ fun LimitScreen(navController: NavController) {
                                     }
                                     navController.navigate("dashboard")
                                 }
-                                .addOnFailureListener { e ->
+                                ?.addOnFailureListener { e ->
                                     errorMessage = e.localizedMessage ?: "Error saving limit"
                                 }
-                                .addOnCompleteListener {
+                                ?.addOnCompleteListener {
                                     isLoading = false
                                 }
                         } else {
@@ -191,15 +196,15 @@ fun LimitScreen(navController: NavController) {
     }
 }
 
-private fun fetchExpenses(db: FirebaseFirestore, userId: String, onComplete: (Double) -> Unit) {
-    db.collection("expenses")
-        .whereEqualTo("userId", userId)
-        .get()
-        .addOnSuccessListener { documents ->
+private fun fetchExpenses(db: FirebaseFirestore?, userId: String, onComplete: (Double) -> Unit) {
+    db?.collection("expenses")
+        ?.whereEqualTo("userId", userId)
+        ?.get()
+        ?.addOnSuccessListener { documents ->
             val total = documents.sumOf { it.getDouble("amount") ?: 0.0 }
             onComplete(total)
         }
-        .addOnFailureListener { e ->
+        ?.addOnFailureListener { e ->
             Log.e("LimitScreen", "Failed to fetch expenses: ${e.localizedMessage}")
             onComplete(0.0)
         }
@@ -240,5 +245,13 @@ private fun sendNotification(context: Context, message: String) {
         NotificationManagerCompat.from(context).notify(notificationId, notification)
     } catch (e: SecurityException) {
         e.printStackTrace()
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun LimitScreenPreview() {
+    MaterialTheme {
+        LimitScreen(navController = rememberNavController())
     }
 }
