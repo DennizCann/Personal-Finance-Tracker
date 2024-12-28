@@ -1,34 +1,51 @@
 package com.denizcan.personalfinancetracker.screens
 
+import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.storage.FirebaseStorage
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
 fun EditProfileScreen(navController: NavController) {
-    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
+    val isPreview = LocalInspectionMode.current
     val db = if (!isPreview) FirebaseFirestore.getInstance() else null
     val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
+    val storageRef = if (!isPreview) FirebaseStorage.getInstance().reference else null
 
-    // Kullanıcı bilgileri için state'ler
     var name by remember { mutableStateOf("") }
     var dateOfBirth by remember { mutableStateOf("") }
-    var currency by remember { mutableStateOf("TRY") } // Varsayılan para birimi
+    var currency by remember { mutableStateOf("TRY") }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
-    val currencyOptions = listOf("TRY", "USD", "EUR", "GBP") // Para birimi seçenekleri
+    val currencyOptions = listOf("TRY", "USD", "EUR", "GBP")
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            selectedImageUri = uri
+        }
+    }
 
     if (!isPreview) {
-        // Firestore'dan kullanıcı bilgilerini çek
         LaunchedEffect(currentUser) {
             currentUser?.let { user ->
                 db?.collection("profiles")?.document(user.uid)
@@ -38,6 +55,8 @@ fun EditProfileScreen(navController: NavController) {
                             name = document.getString("name") ?: ""
                             dateOfBirth = document.getString("dateOfBirth") ?: ""
                             currency = document.getString("currency") ?: "TRY"
+                            val profileImageUrl = document.getString("profileImageUrl")
+                            selectedImageUri = profileImageUrl?.let { Uri.parse(it) }
                         }
                     }
                     ?.addOnFailureListener { e ->
@@ -58,6 +77,30 @@ fun EditProfileScreen(navController: NavController) {
                 .padding(16.dp)
         ) {
             Text("Edit Profile", style = MaterialTheme.typography.headlineMedium)
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Profil Resmi
+            Box(
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable {
+                        imagePickerLauncher.launch("image/*")
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                if (selectedImageUri != null) {
+                    AsyncImage(
+                        model = selectedImageUri,
+                        contentDescription = "Profile Picture",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text("Add Image", color = MaterialTheme.colorScheme.onPrimary)
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -121,24 +164,83 @@ fun EditProfileScreen(navController: NavController) {
                     onClick = {
                         if (name.isNotEmpty() && dateOfBirth.isNotEmpty() && currentUser != null) {
                             isLoading = true
-                            val userProfile = mapOf(
-                                "name" to name,
-                                "dateOfBirth" to dateOfBirth,
-                                "currency" to currency,
-                                "userId" to currentUser.uid
-                            )
 
-                            db?.collection("profiles")
-                                ?.document(currentUser.uid)
-                                ?.set(userProfile)
-                                ?.addOnSuccessListener {
-                                    isLoading = false
-                                    navController.navigate("dashboard")
+                            val userId = currentUser.uid
+                            val fileRef = storageRef?.child("profile_images/$userId.jpg")
+                            val uploadTask = selectedImageUri?.let { fileRef?.putFile(it) }
+
+                            if (fileRef != null) {
+                                fileRef.let { ref ->
+                                    uploadTask?.addOnSuccessListener {
+                                        ref.downloadUrl.addOnSuccessListener { uri ->
+                                            val userProfile = mapOf(
+                                                "name" to name,
+                                                "dateOfBirth" to dateOfBirth,
+                                                "currency" to currency,
+                                                "profileImageUrl" to uri.toString(),
+                                                "userId" to userId
+                                            )
+
+                                            db?.collection("profiles")
+                                                ?.document(userId)
+                                                ?.set(userProfile)
+                                                ?.addOnSuccessListener {
+                                                    isLoading = false
+                                                    navController.navigate("dashboard")
+                                                }
+                                                ?.addOnFailureListener { e ->
+                                                    isLoading = false
+                                                    errorMessage = e.localizedMessage ?: "An error occurred"
+                                                }
+                                        }
+                                    }?.addOnFailureListener { e ->
+                                        isLoading = false
+                                        errorMessage = e.localizedMessage ?: "File upload failed"
+                                    }
                                 }
-                                ?.addOnFailureListener { e ->
-                                    isLoading = false
-                                    errorMessage = e.localizedMessage ?: "An error occurred"
-                                }
+                            } else {
+                                // Resim yüklenmemişse yalnızca diğer bilgileri kaydet
+                                val userProfile = mapOf(
+                                    "name" to name,
+                                    "dateOfBirth" to dateOfBirth,
+                                    "currency" to currency,
+                                    "userId" to userId
+                                )
+
+                                db?.collection("profiles")
+                                    ?.document(userId)
+                                    ?.set(userProfile)
+                                    ?.addOnSuccessListener {
+                                        isLoading = false
+                                        navController.navigate("dashboard")
+                                    }
+                                    ?.addOnFailureListener { e ->
+                                        isLoading = false
+                                        errorMessage = e.localizedMessage ?: "An error occurred"
+                                    }
+                            }
+
+                                ?: run {
+                                // Resim yüklenmemişse yalnızca diğer bilgileri kaydet
+                                val userProfile = mapOf(
+                                    "name" to name,
+                                    "dateOfBirth" to dateOfBirth,
+                                    "currency" to currency,
+                                    "userId" to userId
+                                )
+
+                                db?.collection("profiles")
+                                    ?.document(userId)
+                                    ?.set(userProfile)
+                                    ?.addOnSuccessListener {
+                                        isLoading = false
+                                        navController.navigate("dashboard")
+                                    }
+                                    ?.addOnFailureListener { e ->
+                                        isLoading = false
+                                        errorMessage = e.localizedMessage ?: "An error occurred"
+                                    }
+                            }
                         } else {
                             errorMessage = "Please fill in all fields"
                         }

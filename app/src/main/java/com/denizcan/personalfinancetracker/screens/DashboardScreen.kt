@@ -1,11 +1,14 @@
 package com.denizcan.personalfinancetracker.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -15,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import java.time.LocalDate
@@ -31,7 +35,6 @@ fun PieChart(income: Double, expenses: Double, remainingBalance: Double) {
     val expensesPercentage = (expenses / total).toFloat()
     val remainingPercentage = (remainingBalance / total).toFloat()
 
-    // Canvas bir @Composable bağlamda olduğundan burada kullanılabilir
     Canvas(
         modifier = Modifier.size(180.dp).padding(16.dp)
     ) {
@@ -40,9 +43,8 @@ fun PieChart(income: Double, expenses: Double, remainingBalance: Double) {
 
         var startAngle = -90f
 
-        // Gelir dilimi
         drawArc(
-            color = Color(0xFF6200EE), // Sabit bir renk
+            color = Color(0xFF6200EE), // Gelir dilimi
             startAngle = startAngle,
             sweepAngle = 360 * incomePercentage,
             useCenter = true,
@@ -51,9 +53,8 @@ fun PieChart(income: Double, expenses: Double, remainingBalance: Double) {
         )
         startAngle += 360 * incomePercentage
 
-        // Gider dilimi
         drawArc(
-            color = Color(0xFF03DAC6), // Sabit bir renk
+            color = Color(0xFF03DAC6), // Gider dilimi
             startAngle = startAngle,
             sweepAngle = 360 * expensesPercentage,
             useCenter = true,
@@ -62,9 +63,8 @@ fun PieChart(income: Double, expenses: Double, remainingBalance: Double) {
         )
         startAngle += 360 * expensesPercentage
 
-        // Kalan bakiye dilimi
         drawArc(
-            color = Color(0xFFBB86FC), // Sabit bir renk
+            color = Color(0xFFBB86FC), // Kalan bakiye dilimi
             startAngle = startAngle,
             sweepAngle = 360 * remainingPercentage,
             useCenter = true,
@@ -73,7 +73,6 @@ fun PieChart(income: Double, expenses: Double, remainingBalance: Double) {
         )
     }
 }
-
 
 @Composable
 fun DashboardScreen(navController: NavController) {
@@ -84,22 +83,22 @@ fun DashboardScreen(navController: NavController) {
     var dailyExpensesForMonth by remember { mutableStateOf(0.0) }
     var remainingBalance by remember { mutableStateOf(0.0) }
     var currency by remember { mutableStateOf("TRY") }
+    var profileImageUrl by remember { mutableStateOf<String?>(null) } // Profil resmi URL'si
 
-    val isPreview = LocalInspectionMode.current // Preview modunda mı kontrolü
+    val isPreview = LocalInspectionMode.current
     val db = if (!isPreview) FirebaseFirestore.getInstance() else null
     val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
-    // Firestore'dan kullanıcı bilgilerini çek
     if (!isPreview) {
         LaunchedEffect(currentUser) {
             currentUser?.let { user ->
-                // Profil Bilgilerini Çek
                 db?.collection("profiles")?.document(user.uid)
                     ?.get()
                     ?.addOnSuccessListener { document ->
                         if (document != null && document.exists()) {
                             name = document.getString("name") ?: "User"
                             currency = document.getString("currency") ?: "TRY"
+                            profileImageUrl = document.getString("profileImageUrl") // Profil resmi URL'sini çek
                             val dateOfBirth = document.getString("dateOfBirth")
                             if (!dateOfBirth.isNullOrEmpty()) {
                                 try {
@@ -115,7 +114,6 @@ fun DashboardScreen(navController: NavController) {
                         }
                     }
 
-                // Gelirleri Topla
                 db?.collection("incomes")
                     ?.whereEqualTo("userId", user.uid)
                     ?.get()
@@ -127,7 +125,6 @@ fun DashboardScreen(navController: NavController) {
                         remainingBalance = income - expenses
                     }
 
-                // Giderleri Topla
                 db?.collection("expenses")
                     ?.whereEqualTo("userId", user.uid)
                     ?.get()
@@ -135,14 +132,13 @@ fun DashboardScreen(navController: NavController) {
                         val totalExpenses = result.documents.sumOf { doc ->
                             doc.getDouble("amount") ?: 0.0
                         }
-                        expenses = totalExpenses + dailyExpensesForMonth // Günlük giderleri ekle
+                        expenses = totalExpenses + dailyExpensesForMonth
                         remainingBalance = income - expenses
                     }
 
-                // Günlük Harcamaları Ay Bazında Topla
                 val currentMonth = LocalDate.now().monthValue
                 db?.collection("daily_expenses")
-                    ?.whereEqualTo("userId", user.uid) // Kullanıcı kimliği filtresi eklendi
+                    ?.whereEqualTo("userId", user.uid)
                     ?.get()
                     ?.addOnSuccessListener { result ->
                         val monthlyExpenses = result.documents.filter { doc ->
@@ -150,17 +146,16 @@ fun DashboardScreen(navController: NavController) {
                             if (!dateString.isNullOrEmpty()) {
                                 try {
                                     val date = LocalDate.parse(dateString, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                                    date.monthValue == currentMonth // Mevcut ayı kontrol et
+                                    date.monthValue == currentMonth
                                 } catch (e: DateTimeParseException) {
                                     false
                                 }
                             } else false
                         }.sumOf { it.getDouble("amount") ?: 0.0 }
                         dailyExpensesForMonth = monthlyExpenses
-                        expenses += dailyExpensesForMonth // Giderlere ekle
+                        expenses += dailyExpensesForMonth
                         remainingBalance = income - expenses
                     }
-
             }
         }
     }
@@ -168,29 +163,39 @@ fun DashboardScreen(navController: NavController) {
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
-        // Logout Butonu Sol Altta
-        Button(
-            onClick = {
-                FirebaseAuth.getInstance().signOut()
-                navController.navigate("login") {
-                    popUpTo("login") { inclusive = true }
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(16.dp),
-            colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.primary)
-        ) {
-            Text("Logout", style = MaterialTheme.typography.bodySmall)
-        }
-
-        // Ana İçerik
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
+            // Profil Resmi
+            if (profileImageUrl != null) {
+                AsyncImage(
+                    model = profileImageUrl,
+                    contentDescription = "Profile Picture",
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No Image",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text(
                 text = "Welcome, $name",
                 style = MaterialTheme.typography.headlineSmall
@@ -203,7 +208,6 @@ fun DashboardScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Pasta Grafiği
             PieChart(income = income, expenses = expenses, remainingBalance = remainingBalance)
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -237,7 +241,6 @@ fun DashboardScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Diğer Butonlar
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
@@ -266,7 +269,6 @@ fun DashboardScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Exchange Rates Butonu
             Button(
                 onClick = { navController.navigate("exchangeRates") },
                 modifier = Modifier.size(200.dp, 40.dp)
@@ -275,7 +277,21 @@ fun DashboardScreen(navController: NavController) {
             }
         }
 
-        // Floating Action Button
+        Button(
+            onClick = {
+                FirebaseAuth.getInstance().signOut()
+                navController.navigate("login") {
+                    popUpTo("login") { inclusive = true }
+                }
+            },
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(16.dp),
+            colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.primary)
+        ) {
+            Text("Logout", style = MaterialTheme.typography.bodySmall)
+        }
+
         FloatingActionButton(
             onClick = { navController.navigate("add") },
             modifier = Modifier
@@ -287,7 +303,6 @@ fun DashboardScreen(navController: NavController) {
         }
     }
 }
-
 
 @Preview(showBackground = true)
 @Composable

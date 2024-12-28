@@ -12,7 +12,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.denizcan.personalfinancetracker.network.CurrencyViewModel
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
@@ -21,17 +20,14 @@ fun AddDailyExpenseScreen(
     userId: String, // Kullanıcı kimliği
     currencyViewModel: CurrencyViewModel = viewModel()
 ) {
-    // Firestore ve Firebase Authentication
     val db = FirebaseFirestore.getInstance()
-    val currentUser = FirebaseAuth.getInstance().currentUser
-    val userId = currentUser?.uid ?: "" // Dinamik olarak kullanıcı kimliğini al
 
     val expenseName = remember { mutableStateOf("") }
     val expenseAmount = remember { mutableStateOf("") }
     val dailyExpenses = remember { mutableStateListOf<Map<String, Any>>() }
     val totalDailyExpense = remember { mutableStateOf(0.0) }
     val baseCurrency by currencyViewModel.baseCurrency.observeAsState("TRY")
-    val currentDate = "2024-12-26" // Örnek tarih
+    val currentDate = java.time.LocalDate.now().toString() // Dinamik tarih
 
     // Günlük harcamaları dinamik olarak yükle
     LaunchedEffect(currentDate, userId) {
