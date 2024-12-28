@@ -12,6 +12,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -39,40 +41,72 @@ fun PieChart(income: Double, expenses: Double, remainingBalance: Double) {
         modifier = Modifier.size(180.dp).padding(16.dp)
     ) {
         val pieSize = Size(size.minDimension, size.minDimension)
-        val centerOffset = Offset(size.width / 2 - pieSize.width / 2, size.height / 2 - pieSize.height / 2)
+        val center = Offset(size.width / 2, size.height / 2)
+        val radius = pieSize.width / 2
 
         var startAngle = -90f
 
+        // Gelir dilimi
+        val incomeSweepAngle = 360 * incomePercentage
         drawArc(
-            color = Color(0xFF6200EE), // Gelir dilimi
+            color = Color(0xFF6200EE),
             startAngle = startAngle,
-            sweepAngle = 360 * incomePercentage,
+            sweepAngle = incomeSweepAngle,
             useCenter = true,
-            topLeft = centerOffset,
-            size = pieSize
+            size = pieSize,
+            topLeft = Offset(center.x - radius, center.y - radius)
         )
-        startAngle += 360 * incomePercentage
+        drawTextOnArc(center, radius, startAngle, incomeSweepAngle / 2, "Income")
 
+        startAngle += incomeSweepAngle
+
+        // Gider dilimi
+        val expensesSweepAngle = 360 * expensesPercentage
         drawArc(
-            color = Color(0xFF03DAC6), // Gider dilimi
+            color = Color(0xFF03DAC6),
             startAngle = startAngle,
-            sweepAngle = 360 * expensesPercentage,
+            sweepAngle = expensesSweepAngle,
             useCenter = true,
-            topLeft = centerOffset,
-            size = pieSize
+            size = pieSize,
+            topLeft = Offset(center.x - radius, center.y - radius)
         )
-        startAngle += 360 * expensesPercentage
+        drawTextOnArc(center, radius, startAngle, expensesSweepAngle / 2, "Expenses")
 
+        startAngle += expensesSweepAngle
+
+        // Kalan bakiye dilimi
+        val remainingSweepAngle = 360 * remainingPercentage
         drawArc(
-            color = Color(0xFFBB86FC), // Kalan bakiye dilimi
+            color = Color(0xFFBB86FC),
             startAngle = startAngle,
-            sweepAngle = 360 * remainingPercentage,
+            sweepAngle = remainingSweepAngle,
             useCenter = true,
-            topLeft = centerOffset,
-            size = pieSize
+            size = pieSize,
+            topLeft = Offset(center.x - radius, center.y - radius)
+        )
+        drawTextOnArc(center, radius, startAngle, remainingSweepAngle / 2, "Remaining")
+    }
+}
+
+fun DrawScope.drawTextOnArc(center: Offset, radius: Float, startAngle: Float, middleAngle: Float, text: String) {
+    val radians = Math.toRadians((startAngle + middleAngle).toDouble())
+    val x = center.x + radius / 2 * Math.cos(radians).toFloat()
+    val y = center.y + radius / 2 * Math.sin(radians).toFloat()
+
+    drawContext.canvas.nativeCanvas.apply {
+        drawText(
+            text,
+            x,
+            y,
+            android.graphics.Paint().apply {
+                color = android.graphics.Color.WHITE
+                textAlign = android.graphics.Paint.Align.CENTER
+                textSize = 32f
+            }
         )
     }
 }
+
 
 @Composable
 fun DashboardScreen(navController: NavController) {
@@ -141,21 +175,24 @@ fun DashboardScreen(navController: NavController) {
                     ?.whereEqualTo("userId", user.uid)
                     ?.get()
                     ?.addOnSuccessListener { result ->
+                        val currentMonth = LocalDate.now().monthValue // Güncel ay
                         val monthlyExpenses = result.documents.filter { doc ->
-                            val dateString = doc.getString("date")
+                            val dateString = doc.getString("date") // Günlük harcamanın tarihi
                             if (!dateString.isNullOrEmpty()) {
                                 try {
                                     val date = LocalDate.parse(dateString, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                                    date.monthValue == currentMonth
+                                    date.monthValue == currentMonth // Tarihin ayı güncel ay ile aynı mı?
                                 } catch (e: DateTimeParseException) {
                                     false
                                 }
                             } else false
-                        }.sumOf { it.getDouble("amount") ?: 0.0 }
+                        }.sumOf { it.getDouble("amount") ?: 0.0 } // Geçerli günlük harcamaları topla
+
                         dailyExpensesForMonth = monthlyExpenses
-                        expenses += dailyExpensesForMonth
-                        remainingBalance = income - expenses
+                        expenses += dailyExpensesForMonth // Günlük harcamaları genel harcamalara ekle
+                        remainingBalance = income - expenses // Kalan bakiye hesapla
                     }
+
             }
         }
     }
