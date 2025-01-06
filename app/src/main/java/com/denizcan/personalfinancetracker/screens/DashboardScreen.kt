@@ -17,12 +17,13 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.AsyncImage
+import com.denizcan.personalfinancetracker.CustomTopBar
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.Period
 import java.time.format.DateTimeFormatter
@@ -117,11 +118,14 @@ fun DashboardScreen(navController: NavController) {
     var dailyExpensesForMonth by remember { mutableStateOf(0.0) }
     var remainingBalance by remember { mutableStateOf(0.0) }
     var currency by remember { mutableStateOf("TRY") }
-    var profileImageUrl by remember { mutableStateOf<String?>(null) } // Profil resmi URL'si
+    var profileImageUrl by remember { mutableStateOf<String?>(null) }
 
     val isPreview = LocalInspectionMode.current
     val db = if (!isPreview) FirebaseFirestore.getInstance() else null
     val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
+
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val coroutineScope = rememberCoroutineScope()
 
     if (!isPreview) {
         LaunchedEffect(currentUser) {
@@ -132,7 +136,7 @@ fun DashboardScreen(navController: NavController) {
                         if (document != null && document.exists()) {
                             name = document.getString("name") ?: "User"
                             currency = document.getString("currency") ?: "TRY"
-                            profileImageUrl = document.getString("profileImageUrl") // Profil resmi URL'sini çek
+                            profileImageUrl = document.getString("profileImageUrl")
                             val dateOfBirth = document.getString("dateOfBirth")
                             if (!dateOfBirth.isNullOrEmpty()) {
                                 try {
@@ -170,176 +174,169 @@ fun DashboardScreen(navController: NavController) {
                         remainingBalance = income - expenses
                     }
 
-                val currentMonth = LocalDate.now().monthValue
                 db?.collection("daily_expenses")
                     ?.whereEqualTo("userId", user.uid)
                     ?.get()
                     ?.addOnSuccessListener { result ->
-                        val currentMonth = LocalDate.now().monthValue // Güncel ay
+                        val currentMonth = LocalDate.now().monthValue
                         val monthlyExpenses = result.documents.filter { doc ->
-                            val dateString = doc.getString("date") // Günlük harcamanın tarihi
+                            val dateString = doc.getString("date")
                             if (!dateString.isNullOrEmpty()) {
                                 try {
                                     val date = LocalDate.parse(dateString, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
-                                    date.monthValue == currentMonth // Tarihin ayı güncel ay ile aynı mı?
+                                    date.monthValue == currentMonth
                                 } catch (e: DateTimeParseException) {
                                     false
                                 }
                             } else false
-                        }.sumOf { it.getDouble("amount") ?: 0.0 } // Geçerli günlük harcamaları topla
+                        }.sumOf { it.getDouble("amount") ?: 0.0 }
 
                         dailyExpensesForMonth = monthlyExpenses
-                        expenses += dailyExpensesForMonth // Günlük harcamaları genel harcamalara ekle
-                        remainingBalance = income - expenses // Kalan bakiye hesapla
+                        expenses += dailyExpensesForMonth
+                        remainingBalance = income - expenses
                     }
-
             }
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize()
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            // Profil Resmi
-            if (profileImageUrl != null) {
-                AsyncImage(
-                    model = profileImageUrl,
-                    contentDescription = "Profile Picture",
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                )
-            } else {
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surface) // Arka plan rengi
+            ) {
+                DrawerContent(navController)
+            }
+        }
+    ){
+        Scaffold(
+            topBar = {
+                CustomTopBar(onMenuClick = {
+                    coroutineScope.launch {
+                        drawerState.open()
+                    }
+                })
+            }
+            ,
+            content = { padding ->
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
+                        .fillMaxSize()
+                        .padding(padding)
                 ) {
-                    Text(
-                        "No Image",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        if (profileImageUrl != null) {
+                            AsyncImage(
+                                model = profileImageUrl,
+                                contentDescription = "Profile Picture",
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "No Image",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "Welcome, $name",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+
+                        Text(
+                            text = "Age: $age",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        PieChart(income = income, expenses = expenses, remainingBalance = remainingBalance)
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(16.dp)
+                                    .fillMaxWidth(),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    "Income: ${income} $currency",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "Expenses: ${expenses} $currency",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    "Remaining Balance: ${remainingBalance} $currency",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                            }
+                        }
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Welcome, $name",
-                style = MaterialTheme.typography.headlineSmall
-            )
-
-            Text(
-                text = "Age: $age",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            PieChart(income = income, expenses = expenses, remainingBalance = remainingBalance)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .fillMaxWidth(),
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        "Income: ${income} $currency",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Expenses: ${expenses} $currency",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Remaining Balance: ${remainingBalance} $currency",
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                Button(
-                    onClick = { navController.navigate("editProfile") },
-                    modifier = Modifier.size(100.dp, 40.dp)
-                ) {
-                    Text("Profile")
-                }
-
-                Button(
-                    onClick = { navController.navigate("view") },
-                    modifier = Modifier.size(100.dp, 40.dp)
-                ) {
-                    Text("Records")
-                }
-
-                Button(
-                    onClick = { navController.navigate("limit") },
-                    modifier = Modifier.size(100.dp, 40.dp)
-                ) {
-                    Text("Limit")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = { navController.navigate("exchangeRates") },
-                modifier = Modifier.size(200.dp, 40.dp)
-            ) {
-                Text("Exchange Rates")
-            }
-        }
-
-        Button(
-            onClick = {
-                FirebaseAuth.getInstance().signOut()
-                navController.navigate("login") {
-                    popUpTo("login") { inclusive = true }
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(16.dp),
-            colors = ButtonDefaults.buttonColors(MaterialTheme.colorScheme.primary)
-        ) {
-            Text("Logout", style = MaterialTheme.typography.bodySmall)
-        }
-
-        FloatingActionButton(
-            onClick = { navController.navigate("add") },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = MaterialTheme.colorScheme.primary
-        ) {
-            Text("+", fontSize = 24.sp, color = MaterialTheme.colorScheme.onPrimary)
-        }
+        )
     }
 }
+
+@Composable
+fun DrawerContent(navController: NavController) {
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Menu", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(8.dp))
+        Divider()
+        DrawerItem("Profile", onClick = { navController.navigate("editProfile") })
+        DrawerItem("Records", onClick = { navController.navigate("view") })
+        DrawerItem("Limit", onClick = { navController.navigate("limit") })
+        DrawerItem("Exchange Rates", onClick = { navController.navigate("exchangeRates") })
+        DrawerItem("Logout", onClick = {
+            FirebaseAuth.getInstance().signOut()
+            navController.navigate("login") {
+                popUpTo("login") { inclusive = true }
+            }
+        })
+    }
+}
+
+@Composable
+fun DrawerItem(label: String, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
 
 @Preview(showBackground = true)
 @Composable
