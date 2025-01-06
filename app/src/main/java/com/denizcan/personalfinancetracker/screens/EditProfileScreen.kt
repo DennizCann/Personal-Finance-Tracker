@@ -221,26 +221,26 @@ fun EditProfileScreen(navController: NavController) {
                             }
 
                                 ?: run {
-                                // Resim yüklenmemişse yalnızca diğer bilgileri kaydet
-                                val userProfile = mapOf(
-                                    "name" to name,
-                                    "dateOfBirth" to dateOfBirth,
-                                    "currency" to currency,
-                                    "userId" to userId
-                                )
+                                    // Resim yüklenmemişse yalnızca diğer bilgileri kaydet
+                                    val userProfile = mapOf(
+                                        "name" to name,
+                                        "dateOfBirth" to dateOfBirth,
+                                        "currency" to currency,
+                                        "userId" to userId
+                                    )
 
-                                db?.collection("profiles")
-                                    ?.document(userId)
-                                    ?.set(userProfile)
-                                    ?.addOnSuccessListener {
-                                        isLoading = false
-                                        navController.navigate("dashboard")
-                                    }
-                                    ?.addOnFailureListener { e ->
-                                        isLoading = false
-                                        errorMessage = e.localizedMessage ?: "An error occurred"
-                                    }
-                            }
+                                    db?.collection("profiles")
+                                        ?.document(userId)
+                                        ?.set(userProfile)
+                                        ?.addOnSuccessListener {
+                                            isLoading = false
+                                            navController.navigate("dashboard")
+                                        }
+                                        ?.addOnFailureListener { e ->
+                                            isLoading = false
+                                            errorMessage = e.localizedMessage ?: "An error occurred"
+                                        }
+                                }
                         } else {
                             errorMessage = "Please fill in all fields"
                         }
