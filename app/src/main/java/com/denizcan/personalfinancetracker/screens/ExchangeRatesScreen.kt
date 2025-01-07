@@ -32,7 +32,7 @@ fun ExchangeRatesScreen(
 
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.TopCenter
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -51,24 +51,38 @@ fun ExchangeRatesScreen(
             } else if (exchangeRates.isEmpty()) {
                 Text("No exchange rates available.", style = MaterialTheme.typography.bodyLarge)
             } else {
-                LazyColumn {
-                    items(exchangeRates.entries.toList()) { (currency, rate) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp, horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(currency, style = MaterialTheme.typography.bodyLarge)
-                            Text("%.4f".format(rate), style = MaterialTheme.typography.bodyLarge)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f) // Ekranın yalnızca bir kısmını kaplar
+                        .padding(bottom = 16.dp)
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(exchangeRates.entries.toList()) { (currency, rate) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp, horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(currency, style = MaterialTheme.typography.bodyLarge)
+                                Text("%.4f".format(rate), style = MaterialTheme.typography.bodyLarge)
+                            }
                         }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = { navController.popBackStack() }) {
-                Text("Go Back")
+
+            // "Convert" Butonu
+            Button(
+                onClick = { navController.navigate("convert") }, // Döviz dönüşüm ekranına geçiş
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Convert")
             }
         }
     }

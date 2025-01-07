@@ -57,7 +57,10 @@ class MainActivity : ComponentActivity() {
                                 AddExpenseScreen(navController)
                             }
                             composable("addDailyExpense") {
-                                AddDailyExpenseScreen(navController = navController, userId = userId)
+                                AddDailyExpenseScreen(
+                                    navController = navController,
+                                    userId = userId
+                                )
                             }
                             composable("addDailyIncome") {
                                 val currentUser = FirebaseAuth.getInstance().currentUser
@@ -73,10 +76,19 @@ class MainActivity : ComponentActivity() {
                                     navArgument("expenseAmount") { type = NavType.StringType }
                                 )
                             ) { backStackEntry ->
-                                val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
-                                val expenseName = backStackEntry.arguments?.getString("expenseName") ?: ""
-                                val expenseAmount = backStackEntry.arguments?.getString("expenseAmount")?.toDoubleOrNull() ?: 0.0
-                                EditDailyExpenseScreen(navController, expenseId, expenseName, expenseAmount)
+                                val expenseId =
+                                    backStackEntry.arguments?.getString("expenseId") ?: ""
+                                val expenseName =
+                                    backStackEntry.arguments?.getString("expenseName") ?: ""
+                                val expenseAmount =
+                                    backStackEntry.arguments?.getString("expenseAmount")
+                                        ?.toDoubleOrNull() ?: 0.0
+                                EditDailyExpenseScreen(
+                                    navController,
+                                    expenseId,
+                                    expenseName,
+                                    expenseAmount
+                                )
                             }
 
                             composable(
@@ -88,9 +100,17 @@ class MainActivity : ComponentActivity() {
                                 )
                             ) { backStackEntry ->
                                 val incomeId = backStackEntry.arguments?.getString("incomeId") ?: ""
-                                val incomeName = backStackEntry.arguments?.getString("incomeName") ?: ""
-                                val incomeAmount = backStackEntry.arguments?.getString("incomeAmount")?.toDoubleOrNull() ?: 0.0
-                                EditDailyIncomeScreen(navController, incomeId, incomeName, incomeAmount)
+                                val incomeName =
+                                    backStackEntry.arguments?.getString("incomeName") ?: ""
+                                val incomeAmount =
+                                    backStackEntry.arguments?.getString("incomeAmount")
+                                        ?.toDoubleOrNull() ?: 0.0
+                                EditDailyIncomeScreen(
+                                    navController,
+                                    incomeId,
+                                    incomeName,
+                                    incomeAmount
+                                )
                             }
 
                             composable("editProfile") {
@@ -110,7 +130,8 @@ class MainActivity : ComponentActivity() {
                                 EditIncomeScreen(navController, incomeId)
                             }
                             composable("editExpense/{expenseId}") { backStackEntry ->
-                                val expenseId = backStackEntry.arguments?.getString("expenseId") ?: ""
+                                val expenseId =
+                                    backStackEntry.arguments?.getString("expenseId") ?: ""
                                 EditExpenseScreen(navController, expenseId)
                             }
                             composable("limit") {
@@ -122,6 +143,9 @@ class MainActivity : ComponentActivity() {
                                     currencyViewModel = currencyViewModel,
                                     exchangeRatesViewModel = exchangeRatesViewModel
                                 )
+                            }
+                            composable("convert") {
+                                ConvertScreen(navController = navController)
                             }
                         }
                     }

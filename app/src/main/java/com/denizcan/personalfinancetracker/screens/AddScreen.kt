@@ -30,14 +30,14 @@ fun AddScreen(navController: NavController) {
                 onClick = { navController.navigate("addIncome") },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Add Income")
+                Text("Add Monthly Income")
             }
 
             Button(
                 onClick = { navController.navigate("addExpense") },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Add Expense")
+                Text("Add Monthly Expense")
             }
 
             Button(
