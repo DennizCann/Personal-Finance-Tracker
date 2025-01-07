@@ -59,6 +59,12 @@ class MainActivity : ComponentActivity() {
                             composable("addDailyExpense") {
                                 AddDailyExpenseScreen(navController = navController, userId = userId)
                             }
+                            composable("addDailyIncome") {
+                                val currentUser = FirebaseAuth.getInstance().currentUser
+                                val userId = currentUser?.uid ?: "" // Kullanıcı kimliği alınır
+                                AddDailyIncomeScreen(navController = navController, userId = userId)
+                            }
+
                             composable(
                                 "editDailyExpense/{expenseId}/{expenseName}/{expenseAmount}",
                                 arguments = listOf(

@@ -130,6 +130,7 @@ fun DashboardScreen(navController: NavController) {
     if (!isPreview) {
         LaunchedEffect(currentUser) {
             currentUser?.let { user ->
+                // Kullanıcı verilerini Firestore'dan yükleme kodu
                 db?.collection("profiles")?.document(user.uid)
                     ?.get()
                     ?.addOnSuccessListener { document ->
@@ -152,6 +153,7 @@ fun DashboardScreen(navController: NavController) {
                         }
                     }
 
+                // Gelir ve gider verilerini Firestore'dan yükleme kodu
                 db?.collection("incomes")
                     ?.whereEqualTo("userId", user.uid)
                     ?.get()
@@ -174,6 +176,7 @@ fun DashboardScreen(navController: NavController) {
                         remainingBalance = income - expenses
                     }
 
+                // Günlük harcamalar için toplam hesaplama
                 db?.collection("daily_expenses")
                     ?.whereEqualTo("userId", user.uid)
                     ?.get()
@@ -195,6 +198,28 @@ fun DashboardScreen(navController: NavController) {
                         expenses += dailyExpensesForMonth
                         remainingBalance = income - expenses
                     }
+
+                // Günlük gelirler için toplam hesaplama
+                db?.collection("daily_incomes")
+                    ?.whereEqualTo("userId", user.uid)
+                    ?.get()
+                    ?.addOnSuccessListener { result ->
+                        val currentMonth = LocalDate.now().monthValue
+                        val monthlyIncomes = result.documents.filter { doc ->
+                            val dateString = doc.getString("date")
+                            if (!dateString.isNullOrEmpty()) {
+                                try {
+                                    val date = LocalDate.parse(dateString, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                                    date.monthValue == currentMonth
+                                } catch (e: DateTimeParseException) {
+                                    false
+                                }
+                            } else false
+                        }.sumOf { it.getDouble("amount") ?: 0.0 }
+
+                        income += monthlyIncomes // Gelire ekle
+                        remainingBalance = income - expenses
+                    }
             }
         }
     }
@@ -202,15 +227,9 @@ fun DashboardScreen(navController: NavController) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.surface) // Arka plan rengi
-            ) {
-                DrawerContent(navController)
-            }
+            DrawerContent(navController)
         }
-    ){
+    ) {
         Scaffold(
             topBar = {
                 CustomTopBar(onMenuClick = {
@@ -218,8 +237,15 @@ fun DashboardScreen(navController: NavController) {
                         drawerState.open()
                     }
                 })
-            }
-            ,
+            },
+            floatingActionButton = {
+                FloatingActionButton(
+                    onClick = { navController.navigate("add") },
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Text("+", style = MaterialTheme.typography.headlineMedium, color = Color.White)
+                }
+            },
             content = { padding ->
                 Box(
                     modifier = Modifier
@@ -309,7 +335,12 @@ fun DashboardScreen(navController: NavController) {
 
 @Composable
 fun DrawerContent(navController: NavController) {
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White) // Arka planı beyaz yap
+            .padding(16.dp)
+    ) {
         Text("Menu", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(8.dp))
         Divider()
         DrawerItem("Profile", onClick = { navController.navigate("editProfile") })

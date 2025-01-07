@@ -1,6 +1,9 @@
 package com.denizcan.personalfinancetracker.screens
 
 import android.net.Uri
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -18,54 +20,63 @@ import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.storage.FirebaseStorage
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 
 @Composable
 fun EditProfileScreen(navController: NavController) {
-    val isPreview = LocalInspectionMode.current
-    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
-    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
-    val storageRef = if (!isPreview) FirebaseStorage.getInstance().reference else null
+    // Firebase references
+    val db = FirebaseFirestore.getInstance()
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val storageRef = FirebaseStorage.getInstance().reference
 
+    // State variables
     var name by remember { mutableStateOf("") }
     var dateOfBirth by remember { mutableStateOf("") }
     var currency by remember { mutableStateOf("TRY") }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var profileImageUrl by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
 
     val currencyOptions = listOf("TRY", "USD", "EUR", "GBP")
 
+    // Image picker launcher
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
-        if (uri != null) {
+        if (uri != null && uri.toString().startsWith("content://")) {
             selectedImageUri = uri
+        } else {
+            errorMessage = "Invalid image selected. Please choose a valid file."
         }
     }
 
-    if (!isPreview) {
-        LaunchedEffect(currentUser) {
-            currentUser?.let { user ->
-                db?.collection("profiles")?.document(user.uid)
-                    ?.get()
-                    ?.addOnSuccessListener { document ->
-                        if (document != null && document.exists()) {
-                            name = document.getString("name") ?: ""
-                            dateOfBirth = document.getString("dateOfBirth") ?: ""
-                            currency = document.getString("currency") ?: "TRY"
-                            val profileImageUrl = document.getString("profileImageUrl")
-                            selectedImageUri = profileImageUrl?.let { Uri.parse(it) }
-                        }
+    // Load profile data on component initialization
+    LaunchedEffect(currentUser) {
+        if (currentUser == null) {
+            errorMessage = "User not authenticated. Please log in again."
+            return@LaunchedEffect
+        }
+
+        db.collection("profiles").document(currentUser.uid)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document.exists()) {
+                    name = document.getString("name") ?: ""
+                    dateOfBirth = document.getString("dateOfBirth") ?: ""
+                    currency = document.getString("currency") ?: "TRY"
+                    profileImageUrl = document.getString("profileImageUrl")
+                    if (profileImageUrl != null) {
+                        selectedImageUri = Uri.parse(profileImageUrl)
                     }
-                    ?.addOnFailureListener { e ->
-                        errorMessage = e.localizedMessage ?: "An error occurred"
-                    }
+                }
             }
-        }
+            .addOnFailureListener { e ->
+                errorMessage = "Failed to load profile: ${e.localizedMessage}"
+                Log.e("EditProfileScreen", "Error loading profile: ${e.localizedMessage}")
+            }
     }
 
+    // UI Layout
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
@@ -80,7 +91,7 @@ fun EditProfileScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Profil Resmi
+            // Profile picture section
             Box(
                 modifier = Modifier
                     .size(100.dp)
@@ -124,20 +135,17 @@ fun EditProfileScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Currency Dropdown
+            // Currency selection
             Text("Select Currency", style = MaterialTheme.typography.bodyLarge)
             Spacer(modifier = Modifier.height(8.dp))
-
             var expanded by remember { mutableStateOf(false) }
-
             Box {
                 OutlinedButton(
                     onClick = { expanded = !expanded },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(text = currency)
+                    Text(currency)
                 }
-
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false }
@@ -164,85 +172,40 @@ fun EditProfileScreen(navController: NavController) {
                     onClick = {
                         if (name.isNotEmpty() && dateOfBirth.isNotEmpty() && currentUser != null) {
                             isLoading = true
-
                             val userId = currentUser.uid
-                            val fileRef = storageRef?.child("profile_images/$userId.jpg")
-                            val uploadTask = selectedImageUri?.let { fileRef?.putFile(it) }
+                            val fileRef = storageRef.child("profile_images/$userId.jpg")
 
-                            if (fileRef != null) {
-                                fileRef.let { ref ->
-                                    uploadTask?.addOnSuccessListener {
-                                        ref.downloadUrl.addOnSuccessListener { uri ->
-                                            val userProfile = mapOf(
-                                                "name" to name,
-                                                "dateOfBirth" to dateOfBirth,
-                                                "currency" to currency,
-                                                "profileImageUrl" to uri.toString(),
-                                                "userId" to userId
-                                            )
-
-                                            db?.collection("profiles")
-                                                ?.document(userId)
-                                                ?.set(userProfile)
-                                                ?.addOnSuccessListener {
-                                                    isLoading = false
-                                                    navController.navigate("dashboard")
-                                                }
-                                                ?.addOnFailureListener { e ->
-                                                    isLoading = false
-                                                    errorMessage = e.localizedMessage ?: "An error occurred"
-                                                }
+                            if (selectedImageUri != null && selectedImageUri.toString().startsWith("content://")) {
+                                // Upload the new image
+                                fileRef.putFile(selectedImageUri!!)
+                                    .addOnSuccessListener {
+                                        fileRef.downloadUrl.addOnSuccessListener { downloadUri ->
+                                            saveProfile(
+                                                db,
+                                                userId,
+                                                name,
+                                                dateOfBirth,
+                                                currency,
+                                                downloadUri.toString()
+                                            ) {
+                                                isLoading = false
+                                                navController.navigate("dashboard")
+                                            }
                                         }
-                                    }?.addOnFailureListener { e ->
-                                        isLoading = false
-                                        errorMessage = e.localizedMessage ?: "File upload failed"
                                     }
-                                }
+                                    .addOnFailureListener { e ->
+                                        isLoading = false
+                                        errorMessage = "Image upload failed: ${e.localizedMessage}"
+                                    }
                             } else {
-                                // Resim yüklenmemişse yalnızca diğer bilgileri kaydet
-                                val userProfile = mapOf(
-                                    "name" to name,
-                                    "dateOfBirth" to dateOfBirth,
-                                    "currency" to currency,
-                                    "userId" to userId
-                                )
-
-                                db?.collection("profiles")
-                                    ?.document(userId)
-                                    ?.set(userProfile)
-                                    ?.addOnSuccessListener {
-                                        isLoading = false
-                                        navController.navigate("dashboard")
-                                    }
-                                    ?.addOnFailureListener { e ->
-                                        isLoading = false
-                                        errorMessage = e.localizedMessage ?: "An error occurred"
-                                    }
-                            }
-
-                                ?: run {
-                                    // Resim yüklenmemişse yalnızca diğer bilgileri kaydet
-                                    val userProfile = mapOf(
-                                        "name" to name,
-                                        "dateOfBirth" to dateOfBirth,
-                                        "currency" to currency,
-                                        "userId" to userId
-                                    )
-
-                                    db?.collection("profiles")
-                                        ?.document(userId)
-                                        ?.set(userProfile)
-                                        ?.addOnSuccessListener {
-                                            isLoading = false
-                                            navController.navigate("dashboard")
-                                        }
-                                        ?.addOnFailureListener { e ->
-                                            isLoading = false
-                                            errorMessage = e.localizedMessage ?: "An error occurred"
-                                        }
+                                // Use the existing image
+                                saveProfile(db, userId, name, dateOfBirth, currency, profileImageUrl) {
+                                    isLoading = false
+                                    navController.navigate("dashboard")
                                 }
+                            }
                         } else {
-                            errorMessage = "Please fill in all fields"
+                            errorMessage = "Please fill in all fields."
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -259,11 +222,38 @@ fun EditProfileScreen(navController: NavController) {
     }
 }
 
+// Save profile data function
+fun saveProfile(
+    db: FirebaseFirestore,
+    userId: String,
+    name: String,
+    dateOfBirth: String,
+    currency: String,
+    profileImageUrl: String?,
+    onSuccess: () -> Unit
+) {
+    val userProfile = mapOf(
+        "name" to name,
+        "dateOfBirth" to dateOfBirth,
+        "currency" to currency,
+        "profileImageUrl" to (profileImageUrl ?: ""),
+        "userId" to userId
+    )
+
+    db.collection("profiles").document(userId)
+        .set(userProfile)
+        .addOnSuccessListener {
+            onSuccess()
+        }
+        .addOnFailureListener { e ->
+            Log.e("EditProfileScreen", "Failed to save profile: ${e.localizedMessage}")
+        }
+}
+
+
 @Preview(showBackground = true)
 @Composable
 fun EditProfileScreenPreview() {
-    MaterialTheme {
-        val mockNavController = androidx.navigation.compose.rememberNavController()
-        EditProfileScreen(navController = mockNavController)
-    }
+    val mockNavController = androidx.navigation.compose.rememberNavController()
+    EditProfileScreen(navController = mockNavController)
 }

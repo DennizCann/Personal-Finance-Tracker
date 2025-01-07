@@ -1,5 +1,6 @@
 package com.denizcan.personalfinancetracker.network
 
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -33,5 +34,11 @@ class CurrencyViewModel : ViewModel() {
                     }
                 }
         }
+    }
+
+    // Test veya Preview amaçlı set metodu
+    @VisibleForTesting
+    fun setBaseCurrencyForTest(value: String) {
+        _baseCurrency.value = value
     }
 }
