@@ -7,8 +7,6 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
@@ -17,89 +15,61 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import androidx.navigation.compose.rememberNavController
+import androidx.work.ExistingPeriodicWorkPolicy
+import com.denizcan.personalfinancetracker.workers.LimitControlWorker
+import com.google.firebase.auth.FirebaseUser
+import java.util.concurrent.TimeUnit
 
 @Composable
 fun LimitScreen(navController: NavController) {
     val context = LocalContext.current
-    val isPreview = LocalInspectionMode.current // Preview kontrolü
+    val isPreview = LocalInspectionMode.current
 
-    var totalExpenses by remember { mutableStateOf(0.0) }
-    var limit by remember { mutableStateOf("") }
-    var savedLimit by remember { mutableStateOf<Double?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf("") }
-    var hasNotificationPermission by remember { mutableStateOf(false) }
-    var hasSentNotification by remember { mutableStateOf(false) }
+    val savedLimit = remember { mutableStateOf<Double?>(null) }
+    val totalExpenses = remember { mutableStateOf(0.0) }
+    val hasSentNotification = remember { mutableStateOf(false) }
 
+    val limitInput = remember { mutableStateOf("") }
     val db = if (!isPreview) FirebaseFirestore.getInstance() else null
     val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
 
-    val launcher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted -> hasNotificationPermission = isGranted }
-
     LaunchedEffect(Unit) {
         if (!isPreview) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) != PackageManager.PERMISSION_GRANTED
-                ) {
-                    launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                } else {
-                    hasNotificationPermission = true
-                }
-            } else {
-                hasNotificationPermission = true
-            }
+            loadLimitAndExpenses(
+                db = db,
+                currentUser = currentUser,
+                savedLimit = savedLimit,
+                totalExpenses = totalExpenses,
+                hasSentNotification = hasSentNotification,
+                context = context
+            )
 
-            if (currentUser != null) {
-                isLoading = true
-
-                fetchExpenses(db, currentUser.uid) { fetchedExpenses ->
-                    totalExpenses = fetchedExpenses
-                    if (savedLimit != null && totalExpenses >= savedLimit!! && !hasSentNotification) {
-                        sendNotification(
-                            context,
-                            "Your expenses have exceeded the limit of ${"%.2f".format(savedLimit)}."
-                        )
-                        hasSentNotification = true
-                        db?.collection("limits")?.document(currentUser.uid)
-                            ?.update("notificationSent", true)
-                    } else if (savedLimit != null && totalExpenses < savedLimit!!) {
-                        hasSentNotification = false
-                        db?.collection("limits")?.document(currentUser.uid)
-                            ?.update("notificationSent", false)
-                    }
-                }
-
-                db?.collection("limits")?.document(currentUser.uid)
-                    ?.get()
-                    ?.addOnSuccessListener { document ->
-                        if (document.exists()) {
-                            savedLimit = document.getDouble("limit")
-                            hasSentNotification = document.getBoolean("notificationSent") == true
-                        }
-                    }
-                    ?.addOnFailureListener { e ->
-                        errorMessage = e.localizedMessage ?: "Error fetching limit"
-                    }
-                    ?.addOnCompleteListener {
-                        isLoading = false
-                    }
-            } else {
-                errorMessage = "User not authenticated"
+            // Harcama dinleyicisini başlat
+            if (currentUser != null && db != null) {
+                addExpenseSnapshotListener(
+                    db = db,
+                    currentUser = currentUser,
+                    savedLimit = savedLimit,
+                    totalExpenses = totalExpenses, // Eksik parametre eklendi
+                    context = context
+                )
+                addDailyExpenseSnapshotListener(
+                    db = db,
+                    currentUser = currentUser,
+                    savedLimit = savedLimit,
+                    totalExpenses = totalExpenses,
+                    context = context
+                )
             }
         }
     }
@@ -118,25 +88,25 @@ fun LimitScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            if (savedLimit != null) {
+            if (savedLimit.value != null) {
                 Text(
-                    text = "Current Limit: ${"%.2f".format(savedLimit)}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.primary
+                    text = "Current Limit: ${"%.2f".format(savedLimit.value)}",
+                    style = MaterialTheme.typography.bodyLarge
                 )
-                Spacer(modifier = Modifier.height(16.dp))
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text(
-                text = "Total Expenses: ${"%.2f".format(totalExpenses)}",
+                text = "Total Expenses: ${"%.2f".format(totalExpenses.value)}",
                 style = MaterialTheme.typography.bodyLarge
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
-                value = limit,
-                onValueChange = { limit = it },
+                value = limitInput.value,
+                onValueChange = { limitInput.value = it },
                 label = { Text("Set Limit") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
@@ -144,79 +114,151 @@ fun LimitScreen(navController: NavController) {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            if (isLoading) {
-                CircularProgressIndicator()
-            } else {
-                Button(
-                    onClick = {
-                        val enteredLimit = limit.toDoubleOrNull()
-                        if (enteredLimit != null && currentUser != null) {
-                            isLoading = true
-                            val data = mapOf(
-                                "limit" to enteredLimit,
-                                "userId" to currentUser.uid
-                            )
-                            db?.collection("limits")
-                                ?.document(currentUser.uid)
-                                ?.set(data)
-                                ?.addOnSuccessListener {
-                                    savedLimit = enteredLimit
-                                    db.collection("limits")
-                                        .document(currentUser.uid)
-                                        .update("notificationSent", false)
-                                    fetchExpenses(db, currentUser.uid) { updatedExpenses ->
-                                        totalExpenses = updatedExpenses
-                                        if (totalExpenses >= enteredLimit) {
-                                            sendNotification(context, "Your expenses have exceeded the new limit of ${"%.2f".format(enteredLimit)}.")
-                                        }
-                                    }
-                                    navController.navigate("dashboard")
-                                }
-                                ?.addOnFailureListener { e ->
-                                    errorMessage = e.localizedMessage ?: "Error saving limit"
-                                }
-                                ?.addOnCompleteListener {
-                                    isLoading = false
-                                }
-                        } else {
-                            errorMessage = "Please enter a valid limit"
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save Limit")
-                }
+            Button(
+                onClick = {
+                    val enteredLimit = limitInput.value.toDoubleOrNull()
+                    if (enteredLimit != null && currentUser != null) {
+                        val data = mapOf(
+                            "limit" to enteredLimit,
+                            "userId" to currentUser.uid,
+                            "notificationSent" to false
+                        )
+                        db?.collection("limits")
+                            ?.document(currentUser.uid)
+                            ?.set(data)
+                            ?.addOnSuccessListener {
+                                savedLimit.value = enteredLimit
+                                scheduleLimitControl(context) // WorkManager işini başlat
+                                navController.navigate("dashboard")
+                            }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save Limit")
             }
 
-            if (errorMessage.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(errorMessage, color = MaterialTheme.colorScheme.error)
-            }
         }
     }
 }
 
-private fun fetchExpenses(db: FirebaseFirestore?, userId: String, onComplete: (Double) -> Unit) {
-    db?.collection("expenses")
-        ?.whereEqualTo("userId", userId)
-        ?.get()
-        ?.addOnSuccessListener { documents ->
-            val total = documents.sumOf { it.getDouble("amount") ?: 0.0 }
-            onComplete(total)
-        }
-        ?.addOnFailureListener { e ->
-            Log.e("LimitScreen", "Failed to fetch expenses: ${e.localizedMessage}")
-            onComplete(0.0)
+
+// Gerçek zamanlı harcama dinleyici
+private fun addExpenseSnapshotListener(
+    db: FirebaseFirestore,
+    currentUser: FirebaseUser,
+    savedLimit: MutableState<Double?>,
+    totalExpenses: MutableState<Double>,
+    context: Context
+) {
+    val userId = currentUser.uid // `FirebaseUser` ile doğrudan UID alınır
+
+    db.collection("expenses")
+        .whereEqualTo("userId", userId)
+        .addSnapshotListener { snapshots, e ->
+            if (e != null) {
+                Log.w("LimitScreen", "Expenses listen failed.", e)
+                return@addSnapshotListener
+            }
+
+            var expenseTotal = 0.0
+
+            if (snapshots != null && !snapshots.isEmpty) {
+                expenseTotal = snapshots.documents.sumOf { it.getDouble("amount") ?: 0.0 }
+            }
+
+            totalExpenses.value += expenseTotal
+
+            if (savedLimit.value != null && totalExpenses.value > savedLimit.value!!) {
+                sendNotification(
+                    context,
+                    "Your expenses have exceeded the limit of ${"%.2f".format(savedLimit.value)}."
+                )
+            }
         }
 }
 
-private fun sendNotification(context: Context, message: String) {
+
+private fun addDailyExpenseSnapshotListener(
+    db: FirebaseFirestore,
+    currentUser: FirebaseUser,
+    savedLimit: MutableState<Double?>,
+    totalExpenses: MutableState<Double>,
+    context: Context
+) {
+    val userId = currentUser.uid // `FirebaseUser` ile doğrudan UID alınır
+
+    db.collection("daily_expenses")
+        .whereEqualTo("userId", userId)
+        .addSnapshotListener { snapshots, e ->
+            if (e != null) {
+                Log.w("LimitScreen", "Daily expenses listen failed.", e)
+                return@addSnapshotListener
+            }
+
+            var dailyExpenseTotal = 0.0
+
+            if (snapshots != null && !snapshots.isEmpty) {
+                dailyExpenseTotal = snapshots.documents.sumOf { it.getDouble("amount") ?: 0.0 }
+            }
+
+            totalExpenses.value += dailyExpenseTotal
+
+            if (savedLimit.value != null && totalExpenses.value > savedLimit.value!!) {
+                sendNotification(
+                    context,
+                    "Your daily expenses have exceeded the limit of ${"%.2f".format(savedLimit.value)}."
+                )
+            }
+        }
+}
+
+
+
+// Harcamaları ve limitleri yükle
+private fun loadLimitAndExpenses(
+    db: FirebaseFirestore?,
+    currentUser: FirebaseUser?,
+    savedLimit: MutableState<Double?>,
+    totalExpenses: MutableState<Double>,
+    hasSentNotification: MutableState<Boolean>,
+    context: Context
+) {
+    currentUser?.uid?.let { userId ->
+        // Limiti yükle
+        db?.collection("limits")
+            ?.document(userId)
+            ?.get()
+            ?.addOnSuccessListener { document ->
+                if (document.exists()) {
+                    savedLimit.value = document.getDouble("limit")
+                    hasSentNotification.value = document.getBoolean("notificationSent") ?: false
+                }
+            }
+
+        // Harcamaları yükle
+        db?.collection("expenses")
+            ?.whereEqualTo("userId", userId)
+            ?.get()
+            ?.addOnSuccessListener { documents ->
+                totalExpenses.value = documents.sumOf { it.getDouble("amount") ?: 0.0 }
+            }
+            ?.addOnFailureListener { e ->
+                Log.e("LimitScreen", "Failed to fetch expenses: ${e.localizedMessage}")
+                totalExpenses.value = 0.0
+            }
+    }
+}
+
+
+// Bildirim gönderme
+internal fun sendNotification(context: Context, message: String) {
     val channelId = "expense_limit_channel"
     val channelName = "Expense Limit Alerts"
     val notificationId = System.currentTimeMillis().toInt()
 
-    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
-        != PackageManager.PERMISSION_GRANTED
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
     ) {
         return
     }
@@ -241,17 +283,18 @@ private fun sendNotification(context: Context, message: String) {
         .setPriority(NotificationCompat.PRIORITY_HIGH)
         .build()
 
-    try {
-        NotificationManagerCompat.from(context).notify(notificationId, notification)
-    } catch (e: SecurityException) {
-        e.printStackTrace()
-    }
+    NotificationManagerCompat.from(context).notify(notificationId, notification)
 }
 
-@Preview(showBackground = true)
-@Composable
-fun LimitScreenPreview() {
-    MaterialTheme {
-        LimitScreen(navController = rememberNavController())
-    }
+// WorkManager'i başlat
+fun scheduleLimitControl(context: Context) {
+    val workRequest = PeriodicWorkRequestBuilder<LimitControlWorker>(
+        15, TimeUnit.MINUTES
+    ).build()
+
+    WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+        "LimitControlWork",
+        ExistingPeriodicWorkPolicy.KEEP,
+        workRequest
+    )
 }
