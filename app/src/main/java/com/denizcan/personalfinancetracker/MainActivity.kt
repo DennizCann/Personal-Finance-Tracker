@@ -79,6 +79,20 @@ class MainActivity : ComponentActivity() {
                                 EditDailyExpenseScreen(navController, expenseId, expenseName, expenseAmount)
                             }
 
+                            composable(
+                                "editDailyIncome/{incomeId}/{incomeName}/{incomeAmount}",
+                                arguments = listOf(
+                                    navArgument("incomeId") { type = NavType.StringType },
+                                    navArgument("incomeName") { type = NavType.StringType },
+                                    navArgument("incomeAmount") { type = NavType.StringType }
+                                )
+                            ) { backStackEntry ->
+                                val incomeId = backStackEntry.arguments?.getString("incomeId") ?: ""
+                                val incomeName = backStackEntry.arguments?.getString("incomeName") ?: ""
+                                val incomeAmount = backStackEntry.arguments?.getString("incomeAmount")?.toDoubleOrNull() ?: 0.0
+                                EditDailyIncomeScreen(navController, incomeId, incomeName, incomeAmount)
+                            }
+
                             composable("editProfile") {
                                 EditProfileScreen(navController)
                             }
