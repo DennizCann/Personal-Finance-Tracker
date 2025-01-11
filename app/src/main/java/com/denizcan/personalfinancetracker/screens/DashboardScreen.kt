@@ -28,6 +28,8 @@ import java.time.LocalDate
 import java.time.Period
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.denizcan.personalfinancetracker.network.CurrencyViewModel
 
 @Composable
 fun PieChart(income: Double, expenses: Double, remainingBalance: Double) {
@@ -110,7 +112,10 @@ fun DrawScope.drawTextOnArc(center: Offset, radius: Float, startAngle: Float, mi
 
 
 @Composable
-fun DashboardScreen(navController: NavController) {
+fun DashboardScreen(
+    navController: NavController,
+    currencyViewModel: CurrencyViewModel = viewModel()
+) {
     var name by remember { mutableStateOf("User") }
     var age by remember { mutableStateOf(0) }
     var income by remember { mutableStateOf(0.0) }
@@ -222,6 +227,11 @@ fun DashboardScreen(navController: NavController) {
                     }
             }
         }
+    }
+
+    // Bütçe hatırlatıcısını kontrol et
+    LaunchedEffect(Unit) {
+        currencyViewModel.checkBudgetReminder()
     }
 
     ModalNavigationDrawer(
@@ -338,7 +348,7 @@ fun DrawerContent(navController: NavController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White) // Arka planı beyaz yap
+            .background(Color.White)
             .padding(16.dp)
     ) {
         Text("Menu", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(8.dp))
@@ -347,6 +357,7 @@ fun DrawerContent(navController: NavController) {
         DrawerItem("Records", onClick = { navController.navigate("view") })
         DrawerItem("Limit", onClick = { navController.navigate("limit") })
         DrawerItem("Exchange Rates", onClick = { navController.navigate("exchangeRates") })
+        DrawerItem("Goals", onClick = { navController.navigate("goals") })
         DrawerItem("Logout", onClick = {
             FirebaseAuth.getInstance().signOut()
             navController.navigate("login") {

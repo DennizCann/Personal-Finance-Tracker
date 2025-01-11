@@ -29,116 +29,79 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import com.denizcan.personalfinancetracker.workers.LimitControlWorker
 import com.google.firebase.auth.FirebaseUser
 import java.util.concurrent.TimeUnit
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.denizcan.personalfinancetracker.network.CurrencyViewModel
 
 @Composable
-fun LimitScreen(navController: NavController) {
-    val context = LocalContext.current
-    val isPreview = LocalInspectionMode.current
+fun LimitScreen(
+    navController: NavController,
+    currencyViewModel: CurrencyViewModel = viewModel()
+) {
+    var limit by remember { mutableStateOf("") }
+    var currentExpense by remember { mutableStateOf(0.0) }
+    val currentUser = FirebaseAuth.getInstance().currentUser
+    val db = FirebaseFirestore.getInstance()
 
-    val savedLimit = remember { mutableStateOf<Double?>(null) }
-    val totalExpenses = remember { mutableStateOf(0.0) }
-    val hasSentNotification = remember { mutableStateOf(false) }
+    // Mevcut harcamaları ve limiti yükle
+    LaunchedEffect(currentUser) {
+        currentUser?.let { user ->
+            // Limiti yükle
+            db.collection("limits")
+                .document(user.uid)
+                .get()
+                .addOnSuccessListener { document ->
+                    limit = document.getDouble("limit")?.toString() ?: ""
+                }
 
-    val limitInput = remember { mutableStateOf("") }
-    val db = if (!isPreview) FirebaseFirestore.getInstance() else null
-    val currentUser = if (!isPreview) FirebaseAuth.getInstance().currentUser else null
-
-    LaunchedEffect(Unit) {
-        if (!isPreview) {
-            loadLimitAndExpenses(
-                db = db,
-                currentUser = currentUser,
-                savedLimit = savedLimit,
-                totalExpenses = totalExpenses,
-                hasSentNotification = hasSentNotification,
-                context = context
-            )
-
-            // Harcama dinleyicisini başlat
-            if (currentUser != null && db != null) {
-                addExpenseSnapshotListener(
-                    db = db,
-                    currentUser = currentUser,
-                    savedLimit = savedLimit,
-                    totalExpenses = totalExpenses, // Eksik parametre eklendi
-                    context = context
-                )
-                addDailyExpenseSnapshotListener(
-                    db = db,
-                    currentUser = currentUser,
-                    savedLimit = savedLimit,
-                    totalExpenses = totalExpenses,
-                    context = context
-                )
-            }
+            // Toplam harcamayı hesapla
+            db.collection("expenses")
+                .whereEqualTo("userId", user.uid)
+                .get()
+                .addOnSuccessListener { result ->
+                    currentExpense = result.documents.sumOf { 
+                        it.getDouble("amount") ?: 0.0 
+                    }
+                    
+                    // Harcama limitini kontrol et
+                    if (limit.isNotEmpty()) {
+                        currencyViewModel.checkExpenseLimit(
+                            currentExpense,
+                            limit.toDouble()
+                        )
+                    }
+                }
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Text("Limit Settings", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Harcama Limiti Ayarla",
+            style = MaterialTheme.typography.headlineMedium
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        OutlinedTextField(
+            value = limit,
+            onValueChange = { newValue ->
+                limit = newValue
+                if (newValue.isNotEmpty()) {
+                    currencyViewModel.checkExpenseLimit(
+                        currentExpense,
+                        newValue.toDoubleOrNull() ?: 0.0
+                    )
+                }
+            },
+            label = { Text("Aylık Limit") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+        )
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            if (savedLimit.value != null) {
-                Text(
-                    text = "Current Limit: ${"%.2f".format(savedLimit.value)}",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Total Expenses: ${"%.2f".format(totalExpenses.value)}",
-                style = MaterialTheme.typography.bodyLarge
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = limitInput.value,
-                onValueChange = { limitInput.value = it },
-                label = { Text("Set Limit") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = {
-                    val enteredLimit = limitInput.value.toDoubleOrNull()
-                    if (enteredLimit != null && currentUser != null) {
-                        val data = mapOf(
-                            "limit" to enteredLimit,
-                            "userId" to currentUser.uid,
-                            "notificationSent" to false
-                        )
-                        db?.collection("limits")
-                            ?.document(currentUser.uid)
-                            ?.set(data)
-                            ?.addOnSuccessListener {
-                                savedLimit.value = enteredLimit
-                                scheduleLimitControl(context) // WorkManager işini başlat
-                                navController.navigate("dashboard")
-                            }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Save Limit")
-            }
-
-        }
+        // ... diğer UI elemanları
     }
 }
 

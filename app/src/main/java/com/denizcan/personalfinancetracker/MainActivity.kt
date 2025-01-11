@@ -147,6 +147,23 @@ class MainActivity : ComponentActivity() {
                             composable("convert") {
                                 ConvertScreen(navController = navController)
                             }
+                            composable("goals") {
+                                GoalsScreen(navController = navController)
+                            }
+                            composable("addGoal") {
+                                AddGoalScreen(navController = navController)
+                            }
+                            composable(
+                                "editGoal/{goalId}",
+                                arguments = listOf(navArgument("goalId") { type = NavType.StringType })
+                            ) { backStackEntry ->
+                                val goalId = backStackEntry.arguments?.getString("goalId") ?: ""
+                                EditGoalScreen(
+                                    navController = navController,
+                                    goalId = goalId,
+                                    currencyViewModel = currencyViewModel
+                                )
+                            }
                         }
                     }
                 }
